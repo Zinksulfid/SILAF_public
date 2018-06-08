@@ -29,8 +29,8 @@ library("GeneSets.Drosophila.melanogaster")
 library("stringr")
 library("limma")
 
-# The data analysis is based on several result files. Upon publication, the code and associated result files will be available as an R project file.
-# Upon request, we provide this file also before, please e-mail florian.schober@ki.se
+# The data analysis is based on several result files. Upon publication, the code and associated result files will be available as an R package.
+# Upon request, we provide this R package also before, please e-mail florian.schober@ki.se
 
 # Read basic data table and meta information
 info <- read.table("info.txt", sep = "\t", header = T)
@@ -276,7 +276,7 @@ ggplot(histodata, aes(x = propheavy, y = fct_rev(sample))) +
 #dev.off()
 
 # Figure S2A
-cairo_pdf("FigureS3A.pdf")
+cairo_pdf("FigureS2A.pdf")
 ggplot()+
   geom_pointrange(data = timeseries.mean, 
                   mapping = aes(x = day, y = Rep1, ymin = Rep1-SD1, ymax = Rep1+SD1), 
@@ -289,13 +289,13 @@ ggplot()+
   coord_cartesian(ylim=c(0,1)) +
   scale_y_continuous(name="Labelling efficiency", breaks = c(0,.2,.4,.6,.8,1))+
   theme_classic()+
-  ggtitle("Figure S3A: 14 days labelling efficiency in flies. Mean +/- SD")
+  ggtitle("Figure S2A: 14 days labelling efficiency in flies. Mean +/- SD")
 dev.off()
 
 
 # Figure S2B
 histodata.limitedd2 <- histodata[histodata$sample=="d14",]
-pdf("FigureS3B.pdf")
+pdf("FigureS2B.pdf")
 ggplot(histodata.limitedd2, aes(x = propheavy, y = fct_rev(sample))) +
   geom_density_ridges_gradient(aes(fill = ..x..), scale = 3, size = 0.5, panel_scaling = T) +
   scale_fill_gradientn(colours = c("white"), name = "Labelling efficiency")+
@@ -339,7 +339,7 @@ dev.off()
 ```
 
 # Figure S1: Quality control
-(1) Why do we not use Arg/Lys double labelling? (2) Is SILAF as accurate as LFQ? The "read.ms" function is described in detailled in the header file ("SILAF_header.R").
+(1) Why do we not use Arg/Lys double labelling? (2) Is SILAF as accurate as LFQ? The "read.ms" function is described in detail in the header file ("SILAF_header.R").
 
 ## Figure S1A -S1D
 Conversion of heavy amino acids - The reason why we excluded Arg and focus on Lys6 only.
@@ -601,6 +601,7 @@ flysex.stats <- data.frame(Ratio.H.L.normalized.0913_QE_IA_NL_FS_125 = frac.flys
                            Ratio.H.L.normalized.0913_QE_IA_NL_FS_126 = frac.flysex$Ratio.H.L.normalized.SILAF.F.vs.M.Rev,
                            Protein.IDs = frac.flysex$Protein.IDs,
                            Gene.names = frac.flysex$Gene.names,
+                           protein.names = frac.flysex$Protein.names,
                            Rev = frac.flysex$Reverse,
                            Contm = frac.flysex$Potential.contaminant,
                            Site = frac.flysex$Only.identified.by.site,
@@ -619,8 +620,21 @@ entrez <- select(up, sub(";.*", "", flysex.stats$Protein.IDs), "ENTREZ_GENE")
 entrez <- entrez[!duplicated(entrez$UNIPROTKB),]
 flysex.stats$entrez <- entrez$ENTREZ_GENE[match(entrez$UNIPROTKB, sub(";.*", "", flysex.stats$Protein.IDs))]
 
+# Statistics
+fit <- lmFit(flysex.stats[,1:2])
+fit <- eBayes(fit)
+limma.result <- topTable(fit,number = Inf,confint = TRUE, adjust.method = "fdr")
+
+flysex.stats$FDR <- limma.result[match(rownames(flysex.stats), rownames(limma.result)),]$adj.P.Val
+flysex.stats$mean <- apply(flysex.stats[,1:2], 1, mean.na)
+
+#write.table(flysex.stats, "/Users/florsc/Documents/1_Projects/_SAMC/SILAF/Submission/Flysex.txt",  sep = "\t")
+
 # How are the two replicates towards each other: Figure S3A
 select = abs(apply(flysex.stats[,1:2], 1, mean.na)) > 4.0 # The ones to highlight
+
+#Calculate R:
+round(cor(flysex.stats$Ratio.H.L.normalized.0913_QE_IA_NL_FS_125, flysex.stats$Ratio.H.L.normalized.0913_QE_IA_NL_FS_126, use = "complete.obs"), digits=4)
 
 cairo_pdf("FigureS3A.pdf")
 ggplot(data = flysex.stats, aes(x = Ratio.H.L.normalized.0913_QE_IA_NL_FS_125, y = Ratio.H.L.normalized.0913_QE_IA_NL_FS_126))+
@@ -700,8 +714,11 @@ flysex.comparative$interest <- abs(flysex.comparative$STHLM.mean) > 1 & abs(flys
 sex.of.interest <- flysex.comparative[(abs(flysex.comparative$STHLM.mean) > 1 & abs(flysex.comparative$OLD) > 1 ),]
 sex.of.interest <- sex.of.interest[!is.na(sex.of.interest$protein.id),]
 
+#Calculate R:
+round(cor(flysex.comparative$STHLM.mean, flysex.comparative$OLD, use = "complete.obs"), digits=4)
+
 ## Figure S3C
-cairo_pdf("FigureS3C.pdf")
+#cairo_pdf("FigureS3C.pdf")
 ggplot(data = flysex.comparative, aes (x = STHLM.mean, y = OLD))+
   geom_point(alpha = 0.3)+
   geom_point(data = sex.of.interest, color = "red")+
@@ -714,15 +731,15 @@ ggplot(data = flysex.comparative, aes (x = STHLM.mean, y = OLD))+
   theme_classic()+
   geom_smooth(method='lm',formula=y~x)+
   coord_cartesian(xlim = c(-10,10), ylim = c(-10,10))
-dev.off()
+#dev.off()
 ```
 
 ## The bsf/DmLRPPRC1 knockdown fly
 The fly homologue of LRPPRC, BSF, was knocked down using the UAS-GAL4 system. Two kinds of proteomic analysis were performed. (1) A classical SILAF experiment using light and heavy controls vs knockdowns in climbing larvae and (2) A ratio to ratio analysis of yeast food grown flies, spiking in wDah peptides from heavy holidic food.
 
-### Classical SILAF: Figure S4D
+### Classical SILAF: Figure S4
 
-```{r Figure S5D, tidy = TRUE, warning = FALSE}
+```{r Figure S4, tidy = TRUE, warning = FALSE}
 # Read in data >>
 BSF.larvae.stats <- read.table("Preseus_stats/BSF.LARVAE.txt", header = T, sep = "\t")
 BSF.larvae <- read.ms(data = total, meta = info, name = "BSF.LARVAE", type = "SILAF", sum.column = "FALSE", inf.clearing = "to.NA", plots = "TRUE", stats = BSF.larvae.stats, normalize = "FALSE")
@@ -738,7 +755,7 @@ rownames(BSF.larvae$stats) <- BSF.larvae$stats$Protein.IDs
 
 fit <- lmFit(BSF.larvae$stats[,1:4])
 fit <- eBayes(fit)
-limma.result <- topTable(fit,number = Inf,confint = TRUE)
+limma.result <- topTable(fit,number = Inf,confint = TRUE, adjust.method = "fdr")
 
 BSF.larvae$stats$limma.padj <- limma.result[match(rownames(BSF.larvae$stats), rownames(limma.result)),]$adj.P.Val
 BSF.larvae$plots$limma.padj <- limma.result[match(rownames(BSF.larvae$plots), rownames(limma.result)),]$adj.P.Val
@@ -760,6 +777,7 @@ pathway.mb.tmp.entrez <- select(up, pathway.mb.tmp, "ENTREZ_GENE") # Final list 
 entrez <- select(up, sub(".*,", "", BSF.larvae$stats$Majority.protein.IDs), "ENTREZ_GENE") # Maps entrez IDs to uniprot IDs
 entrez <- entrez[!duplicated(entrez$UNIPROTKB),]
 BSF.larvae$plots$entrez <- entrez$ENTREZ_GENE[match(entrez$UNIPROTKB, sub(".*,", "", rownames(BSF.larvae$plots)))]
+BSF.larvae$stats$entrez <- entrez$ENTREZ_GENE[match(entrez$UNIPROTKB, sub(".*,", "", rownames(BSF.larvae$stats)))]
 
 BSF.larvae$plots$OXPHOS <- BSF.larvae$plots$entrez %in% pathway.mb.tmp.entrez$ENTREZ_GENE # Indicates the OXPHOS subunits in the plots file
 
@@ -770,7 +788,7 @@ OXPHOS.manual <- ifelse(OXPHOS.manual!=TRUE, FALSE, OXPHOS.manual)
 BSF.larvae$plots$OXPHOS <- BSF.larvae$plots$OXPHOS*as.logical(OXPHOS.manual)
 
 ## Figure S4D, a volcano plot
-cairo_pdf("FigureS4D_annot.pdf")
+cairo_pdf("FigureS4D.pdf")
 ggplot(data = BSF.larvae$plots, aes(x = logfc, y = -log10(limma.padj))) +
     geom_point(data = BSF.larvae$plots[BSF.larvae$plots$OXPHOS == 0,], aes(color="red"), alpha = 0.6)+
     geom_point(data = BSF.larvae$plots[BSF.larvae$plots$OXPHOS == 1,], aes(color="blue"), alpha = 1)+
@@ -781,6 +799,9 @@ ggplot(data = BSF.larvae$plots, aes(x = logfc, y = -log10(limma.padj))) +
     geom_text_repel(data = BSF.larvae$plots[BSF.larvae$plots$OXPHOS == TRUE,], aes(label = Gene.names))
     coord_cartesian(xlim = c(-4,4))
 dev.off()
+
+#BSF.larvae$stats$mean <- apply(BSF.larvae$stats[,1:4], 1, mean.na)
+#write.table(BSF.larvae$stats, "/Users/florsc/Documents/1_Projects/_SAMC/SILAF/Submission/BSF.larvae.txt",  sep = "\t")
 ```
 
 ### Ratio/ratio SILAF: Figure 2A, S4A and S4B
@@ -801,10 +822,11 @@ rownames(BSF.flies$stats) <- BSF.flies$stats$Protein.IDs
 design <- cbind(Grp1 = 1, Grp2vs1=c(0,0,0,0,1,1,1,1))
 fit <- lmFit(BSF.flies$stats[,1:8], design)
 fit <- eBayes(fit)
-limma.result <- topTable(fit, number = Inf,confint = TRUE, coef = 2)
+limma.result <- topTable(fit, number = Inf,confint = TRUE, coef = 2, adjust.method = "fdr")
 
 BSF.flies$stats$limma.padj <- limma.result[match(rownames(BSF.flies$stats), rownames(limma.result)),]$adj.P.Val
 BSF.flies$plots$limma.padj <- limma.result[match(rownames(BSF.flies$plots), rownames(limma.result)),]$adj.P.Val
+BSF.flies$plots$limma.fc <- limma.result[match(rownames(BSF.flies$plots), rownames(limma.result)),]$logFC
 
 # Levels of BSF:
 bsf.column <- BSF.flies$int["Q9VJ86",]
@@ -818,7 +840,7 @@ data$genotype <- c(rep("Control", 4), rep("BSF KD", 4))
 data$ratio <- log2(2^(data$light)/2^(data$heavy))
 
 # Figure S4A
-#cairo_pdf("FigureS5A.pdf")
+#cairo_pdf("FigureS4A.pdf")
 ggplot(data, aes(x=genotype, y=ratio)) + 
   geom_jitter(position=position_jitter(0.2))+
   theme_classic()+
@@ -838,7 +860,7 @@ write.table(gsea.bsf.flies, "GSEA/BSF.flies.rnk", sep = "\t", row.names = FALSE,
 
 # The Gene Set Enrichment Analysis is done using the online tool of Webgestalt.
 
-# ... and then import as a formated table to plot a GSEA graph
+# ... and then import as a formatted table to plot a GSEA graph
 BSF.FLIES.GSEA.table <- read.table("GSEA/BSF.FLIES/BSF.FLIES.GSEA.txt", sep = "\t", header = TRUE)
 BSF.FLIES.GSEA.table$log10.FDR  <- -log10(BSF.FLIES.GSEA.table$FDR)
 
@@ -846,8 +868,8 @@ BSF.FLIES.GSEA.table$NES <- as.numeric(BSF.FLIES.GSEA.table$NES)
 BSF.FLIES.GSEA.table <- BSF.FLIES.GSEA.table[order(BSF.FLIES.GSEA.table$NES, decreasing = T),]
 color <- c("blue", "orange")[BSF.FLIES.GSEA.table$database]
 
-# Figure S4B
-#cairo_pdf("FigureS5B.pdf")
+# Figure S4E
+#cairo_pdf("FigureS4E.pdf")
 ggplot(BSF.FLIES.GSEA.table, aes(x=NES, y=description, label=description)) + 
   geom_point(stat="identity", color=color, size=6)  +
   geom_segment(aes(y = description, 
@@ -883,10 +905,10 @@ BSF.flies$plots$OXPHOS <- BSF.flies$plots$entrez %in% pathway.mb.tmp.entrez$ENTR
 OXPHOS.manual <- sub("ND.*|NP.*|cyp.*|RFe.*|UQCR.*|CO.*|lev.*|CG96.*|CoV.*|ATPsyn.*|CG469*|Osc*|Sdh.*", TRUE, 
                      BSF.flies$plots$Gene.names)
 OXPHOS.manual <- ifelse(OXPHOS.manual!=TRUE, FALSE, OXPHOS.manual)
-BSF.flies$plots$OXPHOS <- BSF.flies$plots$OXPHOS*as.logical(OXPHOS.manual)
+BSF.flies$plots$OXPHOS <- as.logical(OXPHOS.manual)
 
-## Figure 1D
-cairo_pdf("Figure2C.pdf")
+## Figure 2B
+#cairo_pdf("Figure2B.pdf")
 ggplot(data = BSF.flies$plots, aes(x = logfc, y = -log10(limma.padj))) +
     geom_point(data = BSF.flies$plots[BSF.flies$plots$OXPHOS == 0,], aes(color="grey"), alpha = 0.6)+
     geom_point(data = BSF.flies$plots[BSF.flies$plots$OXPHOS == 1,], aes(color="firebrick3"), alpha = 1, size = 2)+
@@ -895,7 +917,7 @@ ggplot(data = BSF.flies$plots, aes(x = logfc, y = -log10(limma.padj))) +
     labs(x = "log2(fold change)", y = "-log10(adjusted p-value)")+
     geom_hline(yintercept = -log10(0.05), color = "black", lty = "dotted")+
     coord_cartesian(xlim = c(-4,4))
-dev.off()
+#dev.off()
 
 # Create a bargraph of OXPHOS subunits with SD. 
 ## Calculate the pooled standard deviation w/o log2 fc
@@ -904,7 +926,9 @@ means.bsf <- data.frame(KD1 = apply(2^BSF.flies$stats[,1:4], 1, mean.na)/2^BSF.f
                         KD3 = apply(2^BSF.flies$stats[,1:4], 1, mean.na)/2^BSF.flies$stats[,7],
                         KD4 = apply(2^BSF.flies$stats[,1:4], 1, mean.na)/2^BSF.flies$stats[,8])
 BSF.flies$plots$mean.fc <- apply(means.bsf, 1, mean.na)
-BSF.flies$plots$sd <- apply(means.bsf, 1, sd.na)       
+BSF.flies$plots$sd <- apply(means.bsf, 1, sd.na)
+
+BSF.flies$plots <- cbind(BSF.flies$plots, means.bsf)
 
 oxphos.bsf <- BSF.flies$plots[BSF.flies$plots$OXPHOS == TRUE,]
 
@@ -919,24 +943,31 @@ oxphos.bsf <- oxphos.bsf[order(oxphos.bsf$Gene.names),]
 oxphos.bsf <- oxphos.bsf[order(oxphos.bsf$complex),]
 oxphos.bsf$Gene.names <- factor(oxphos.bsf$Gene.names, levels = oxphos.bsf$Gene.names)
 
-# Plot Figure S4C
-cairo_pdf("FigureS4C.pdf")
+# Plot Figure 2C
+#cairo_pdf("Figure2C.pdf", height = 3.5)
 ggplot(oxphos.bsf, aes(x=Gene.names, y=mean.fc)) + 
     geom_bar(position="dodge", stat="identity")+
     geom_errorbar(aes(ymin=mean.fc-sd, ymax=mean.fc+sd),
                   width=.2,                    # Width of the error bars
                   position=position_dodge(.9))+
   geom_hline(yintercept = 1, lty = "dotted")+
+  geom_point(data=oxphos.bsf,aes(Gene.names, y=oxphos.bsf$KD1),position="dodge", alpha = 0.5, size = 0.5, fill= "white", color = "black")+
+  geom_point(data=oxphos.bsf,aes(Gene.names, y=oxphos.bsf$KD2),position="dodge", alpha = 0.5, size = 0.5, fill= "white", color = "black")+
+  geom_point(data=oxphos.bsf,aes(Gene.names, y=oxphos.bsf$KD3),position="dodge", alpha = 0.5, size = 0.5, fill= "white", color = "black")+
+  geom_point(data=oxphos.bsf,aes(Gene.names, y=oxphos.bsf$KD4),position="dodge", alpha = 0.5, size = 0.5, fill= "white", color = "black")+
   theme_classic()+
   theme(axis.text.x = element_text(angle = 90, hjust = 1))
-dev.off()
+#dev.off()
+
+#BSF.flies$stats$mean <- BSF.flies$plots$logfc
+#write.table(BSF.flies$stats, "/Users/florsc/Documents/1_Projects/_SAMC/SILAF/Submission/BSF.flies.txt",  sep = "\t")
 ```
 
 ### Overlap of the classical approach versus SILAF: Figure 2A/B and S4E
 
 ```{r Figure 1C and S5E, tidy = TRUE, warning = FALSE}
 # Overlap Ratio/Larvae
-## Figure 2A/B: Piecharts
+## Figure 2A/S4B: Piecharts
 
 ### Ratio
 table(BSF.flies$plots$limma.padj<0.001)
@@ -956,7 +987,7 @@ pie(x,labels = labelsx, col = colsx, clockwise = T, init.angle = 90)
 pie(y,labels = labelsy, col = colsy, clockwise = T, init.angle = 90)
 dev.off()
 
-## Figure S5E: Fold change overlap
+## Figure S4C: Fold change overlap
 bsf.all.prot <- unique(c(as.character(rownames(BSF.flies$plots)), as.character(rownames(BSF.larvae$plots)))) # Get all proteins in both datasets
 bsf.comparison <- data.frame(bsf.all.prot,
                         as.numeric(as.character(BSF.larvae$plots[match(bsf.all.prot, rownames(BSF.larvae$plots)),]$logfc)),
@@ -974,7 +1005,10 @@ POI <- bsf.comparison[abs(bsf.comparison$Larvae) > 1 & abs(bsf.comparison$Flies)
 POI.color <- ifelse(abs(bsf.comparison$Larvae) > 1 & abs(bsf.comparison$Flies) > 1, "brown4", "grey")
 POI.alpha <- ifelse(abs(bsf.comparison$Larvae) > 1 & abs(bsf.comparison$Flies) > 1, 1, 0.6)
 
-#cairo_pdf("FigureS4D.pdf")
+# Calculate Pearson's R
+round(cor(bsf.comparison$Larvae, bsf.comparison$Flies, use = "complete.obs"), digits=4)
+
+#cairo_pdf("FigureS4C.pdf")
 ggplot(bsf.comparison, aes(x = Larvae, y = Flies))+
   geom_hline(yintercept = 0)+
   geom_vline(xintercept = 0)+
@@ -1016,27 +1050,28 @@ holidic.proteome.red <- data.frame(ID = holidic.proteome$Protein.IDs,
                                    Rep1 = log2(holidic.proteome$Ratio.H.L.normalized.1),
                                    Rep2 = log2(holidic.proteome$Ratio.H.L.normalized.2))
 
+
 holidic.proteome.complete <- holidic.proteome.red[complete.cases(holidic.proteome.red[,4:5]),]
 rownames(holidic.proteome.complete) <- holidic.proteome.complete$ID
 
 holidic.proteome.complete$Ratio <- apply(holidic.proteome.complete[,4:5], 1, mean.na)
 
-
 ## Calculate padj with limma moderated t-test
 fit <- lmFit(holidic.proteome.complete[,4:5])
 fit <- eBayes(fit)
-limma.result <- topTable(fit, number = Inf, confint = TRUE)
+limma.result <- topTable(fit, number = Inf, confint = TRUE, adjust.method = "fdr")
 
 holidic.proteome.complete$limma.padj <- limma.result[match(holidic.proteome.complete$ID, rownames(limma.result)),]$adj.P.Val
 
 ## Prepare a table for GSEA
 holidic.proteome.red$Ratio <- apply(holidic.proteome.red[,4:5],1,mean.na)
-holidic.proteome.red <- holidic.proteome.red[!is.na(holidic.proteome.red$Ratio),]
+holidic.proteome.red <- holidic.proteome.red[!is.na(holidic.proteome.red$Ratio),] 
+
 rankedSet <- select(up, sub(";.*","", holidic.proteome.red$ID), "ENTREZ_GENE")
 monster.gsea <- data.frame(entrez = rankedSet$ENTREZ_GENE, 
                            logfc = holidic.proteome.red[match(rankedSet$UNIPROTKB, sub(";.*","", holidic.proteome.red$ID)),]$Ratio)
 monster.gsea <- subset(monster.gsea, !duplicated(monster.gsea$entrez))
-write.table(monster.gsea, "GSEA/Monster/Monster.deep.rnk", quote = F, col.names = F, row.names = F, sep = "\t")
+#write.table(monster.gsea, "GSEA/Monster/Monster.deep.rnk", quote = F, col.names = F, row.names = F, sep = "\t")
 
 ## Import the WebGestalt output and plot
 monster.gsea.webgestalt <- read.table("GSEA/Monster/Proteome_deep_Results/Monster.proteome.GSEA.results.txt",
@@ -1056,6 +1091,8 @@ ggplot(data = monster.gsea.webgestalt, aes(x = NES, y = -log10(padj), color = Re
   scale_colour_manual(values=cbPalette)
 dev.off()
 
+## How many proteins were calculated in either replicate?
+table(!is.na(holidic.proteome.red$Ratio))
 
 # Figure 2A
 ## GSEA identifies "KEGG Fatty acid metabolism" as a major downregulated category. The names of the candidates come with the Webgestalt output and will be highlighted in a volcano plot
@@ -1067,7 +1104,8 @@ holidic.proteome.complete$entrez <- rankedSet[match(sub(";.*","", holidic.proteo
 holidic.proteome.complete$FAM <- holidic.proteome.complete$entrez %in% FAM
 holidic.proteome.complete$Glyco <- holidic.proteome.complete$entrez %in% Glyco
 
-cairo_pdf("Figure3B.pdf")
+
+#cairo_pdf("Figure3B.pdf")
 ggplot(data = holidic.proteome.complete, aes(x = Ratio, y = -log10(limma.padj))) +
     geom_point(data = holidic.proteome.complete[holidic.proteome.complete$FAM == FALSE&holidic.proteome.complete$Glyco == FALSE,],
                color = "grey", alpha = 0.6)+
@@ -1081,7 +1119,9 @@ ggplot(data = holidic.proteome.complete, aes(x = Ratio, y = -log10(limma.padj)))
     geom_text_repel(data = holidic.proteome.complete[holidic.proteome.complete$Glyco == TRUE,], aes(label = gene))+
   geom_text_repel(data = holidic.proteome.complete[holidic.proteome.complete$FAM == TRUE,], aes(label = gene))+
     coord_cartesian(xlim = c(-4,4))
-dev.off()
+#dev.off()
+
+#write.table(holidic.proteome.complete, "/Users/florsc/Documents/1_Projects/_SAMC/SILAF/Submission/Holidic_Proteome.txt",  sep = "\t")
 ```
 
 ## Differential phosphorylome: Figure 2C and figure S5B-E
@@ -1091,8 +1131,27 @@ dev.off()
 phospho <- read.csv("/Users/florsc/Documents/1_Projects/_SAMC/SILAF/MQ results/SILAF/Markdown/Phospho/Phospho(STY)Sites.csv", 
                     header = T, sep =";")
 
+# Exclusion criterion
+phospho <- phospho[phospho$Localization.prob>=0.75,]
+
+# Prepare the table for Supplementary table S2
+publication <- data.frame(protein.id = phospho$Protein,
+                          protein = phospho$Protein.names,
+                          gene.name = phospho$Gene.names,
+                          position = phospho$Positions.within.proteins,
+                          seq = phospho$Sequence.window,
+                          Ratio.1 = phospho$Ratio.H.L.normalized.1,
+                          Ratio.1 = phospho$Ratio.H.L.normalized.2,
+                          occupancy.yeast = phospho$Occupancy.L,
+                          occupancy.holidic = phospho$Occupancy.H)
+publication$occupancy.diff <- log2(publication$occupancy.holidic/publication$occupancy.yeast)
+
 ## How is the H/L ratio per site of the two replicates towards each other? Figure S6C
-cairo_pdf("FigureS6C.pdf")
+
+# Calculate R:
+round(cor(log2(phospho$Ratio.H.L.normalized.1), log2(phospho$Ratio.H.L.normalized.2), use = "complete.obs"), digits=4)
+
+#cairo_pdf("FigureS5A.pdf")
 ggplot(data = phospho, aes(x = log2(Ratio.H.L.normalized.1), y = log2(Ratio.H.L.normalized.2)))+
   geom_hline(yintercept = 0)+
   geom_vline(xintercept = 0)+
@@ -1112,7 +1171,7 @@ ggplot(data = phospho, aes(x = log2(Ratio.H.L.normalized.1), y = log2(Ratio.H.L.
     box.padding = 0.5,
     point.padding = 0.5)+
   coord_fixed(ratio = 1/1)
-dev.off()
+#dev.off()
 
 # The H/L ratio per site tells little about its occupancy as it is not corrected for peptide abundances. 
 ## Looking at occupancies: individual replicates
@@ -1121,20 +1180,23 @@ phospho.occupancy <- data.frame(gene = phospho$Gene.names,
                                 name = phospho$Protein.names,
                                 Rep1 = log2(phospho$Occupancy.H.1/phospho$Occupancy.L.1), 
                                 Rep2 = log2(phospho$Occupancy.H.2/phospho$Occupancy.L.2),
+                                Rep.comb = log2(phospho$Occupancy.H/phospho$Occupancy.L),
                                 locProb = phospho$Localization.prob)
 
-phospho.occupancy <- phospho.occupancy[phospho.occupancy$locProb >= 0.75,]
 phospho.occupancy$mean <- apply(phospho.occupancy[,4:5],1,mean.na)
 phospho.occupancy <- phospho.occupancy[complete.cases(phospho.occupancy$mean),]
 
 fit <- lmFit(phospho.occupancy[,4:5])
 fit <- eBayes(fit)
-limma.result <- topTable(fit,number = Inf,confint = TRUE)
+limma.result <- topTable(fit,number = Inf,confint = TRUE, adjust.method = "fdr")
+
+ggplot(data = limma.result, aes(x=logFC,y=-log10(adj.P.Val)))+
+  geom_point()
 
 phospho.occupancy$limma <- limma.result[match(rownames(phospho.occupancy), rownames(limma.result)),]$adj.P.Val
 
-### Figure S6D:
-cairo_pdf("FigureS6D.pdf")
+### Figure S6B:
+#cairo_pdf("FigureS6B.pdf")
 ggplot(data = phospho.occupancy, aes(x = Rep1, y = Rep2))+
   geom_hline(yintercept = 0)+
   geom_vline(xintercept = 0)+
@@ -1153,17 +1215,10 @@ ggplot(data = phospho.occupancy, aes(x = Rep1, y = Rep2))+
       box.padding = 0.3,
       point.padding = 0.3)+
   coord_fixed(ratio = 1/1)
-dev.off()
+#dev.off()
 
-## STRING of highly changed targets
-string.changed <- as.character(phospho.occupancy[abs(phospho.occupancy$mean) >= 1,]$protein)
-string.up <- as.character(phospho.occupancy[phospho.occupancy$mean >= 1,]$protein)
-string.down <- as.character(phospho.occupancy[phospho.occupancy$mean <= -1,]$protein)
-string.background <- as.character(phospho.occupancy$protein)
-write.table(file = "GSEA/Monster/Phosphostring_changed_indv.txt", string.changed, quote = F, col.names = F, row.names = F)
-write.table(file = "GSEA/Monster/Phosphostring_up_indv.txt", string.up, quote = F, col.names = F, row.names = F)
-write.table(file = "GSEA/Monster/Phosphostring_down_indv.txt", string.down, quote = F, col.names = F, row.names = F)
-write.table(file = "GSEA/Monster/Phosphostring_bg_indv.txt", string.background, quote = F, col.names = F, row.names = F)
+# Calculate R:
+round(cor(phospho.occupancy$Rep1, phospho.occupancy$Rep2, use = "complete.obs"), digits=4)
 
 ### Further analysed in the online module of STRING
 
@@ -1180,7 +1235,7 @@ phospho.gsea <- data.frame(entrez = rankedSet$ENTREZ_GENE,
 phospho.gsea <- phospho.gsea[order(abs(phospho.gsea$logfc)),] # As to remove duplicates in the next step, keep the maximum phospho occupancy change
 
 phospho.gsea <- subset(phospho.gsea, !duplicated(phospho.gsea$entrez))
-write.table(file = "GSEA/Monster/Monster.phospho.rnk", phospho.gsea, sep = "\t", col.names = F, 
+#write.table(file = "GSEA/Monster/Monster.phospho.rnk", phospho.gsea, sep = "\t", col.names = F, 
             row.names = F, quote = F)
 
 ### Import the WebGestalt output and plot
@@ -1191,7 +1246,7 @@ phospho.gsea.results <- read.table("GSEA/Monster/Phospho_Results/Monster.phospho
 cbPalette <- c("#999999", "#E69F00", "#56B4E9", "#0072B2", "#D55E00", "#CC79A7")
 
 ### Figure S6B
-cairo_pdf("FigureS6B.pdf")
+#cairo_pdf("FigureS6B.pdf")
 ggplot(data = phospho.gsea.results, aes(x = NES, y = -log10(padj), color = Reference, size = coverage))+
   geom_point()+
   theme_classic()+
@@ -1199,7 +1254,7 @@ ggplot(data = phospho.gsea.results, aes(x = NES, y = -log10(padj), color = Refer
                   box.padding = 0.5,
                   point.padding = 0.5)+
   scale_colour_manual(values=cbPalette)
-dev.off()
+#dev.off()
 
 ## Looking at occupancies: cummulative values
 phospho.occupancy.cuml <- data.frame(protein = phospho$Proteins,
@@ -1212,7 +1267,6 @@ phospho.occupancy.cuml <- data.frame(protein = phospho$Proteins,
                                       seq = phospho$Sequence.window)
 
 ### Exclusion criteria
-phospho.occupancy.cuml <- phospho.occupancy.cuml[phospho.occupancy.cuml$PEP<= 0.01,]
 phospho.occupancy.cuml <- phospho.occupancy.cuml[phospho.occupancy.cuml$occupancy!= "NaN",]
 phospho.occupancy.cuml <- phospho.occupancy.cuml[!is.na(phospho.occupancy.cuml$seq),]
 
@@ -1227,40 +1281,39 @@ write.table(file = "GSEA/Monster/Phosphostring_down.txt", string.down, quote = F
 write.table(file = "GSEA/Monster/Phosphostring_bg.txt", string.background, quote = F, col.names = F, row.names = F)
 
 ### Plot occupancies in a histogram
-pdf("Figure2C.pdf")
+#pdf("Figure2C.pdf")
 ggplot(data = phospho.occupancy.cuml, aes(occupancy))+
   geom_histogram()+
   theme_classic()
-dev.off()
+#dev.off()
 
-dim(phospho[phospho$Localization.prob>=0.75,])
   
 # How many proteins are there in total? Basis for Figure 2B
 df <- data.frame(x = c(3,6,9,12), y = c(3,6,9,12))
 size <- c(12221, 7496, 1356, 629)
 size <- sqrt(size/pi)*2
 
-cairo_pdf("Figure3B1.pdf")
+#cairo_pdf("Figure3B2.pdf")
 ggplot(data = df, aes (x = x, y = y))+
   geom_point(size = size)+
   coord_cartesian(xlim=c(-2,15), ylim = c(-2,15))
-dev.off()
+#dev.off()
 
-df <- data.frame(x = c(3,6,9), y = c(3,6,9))
-size <- c(6662, 3375, 864)
+df <- data.frame(x = c(3,6,9,12), y = c(3,6,9,12))
+size <- c(5966, 4749, 3880, 141)
 size <- sqrt(size/pi)*2
 
-cairo_pdf("Figure3B2.pdf")
+#cairo_pdf("Figure3B1.pdf")
 ggplot(data = df, aes (x = x, y = y))+
   geom_point(size = size)+
   coord_cartesian(xlim=c(-2,15), ylim = c(-2,15))
-dev.off()
+#dev.off()
 
 # Sequence motives: Figure S6E
 ## Global
-pdf("FigureS6E.pdf")
+#pdf("FigureS5C.pdf")
 ggseqlogo(sub(";.*","",as.character(phospho.occupancy$seq)), method = 'bits', col_scheme='chemistry')
-dev.off()
+#dev.off()
 
 ## Testing the environment of specific phospho AA
 ggseqlogo(sub(";.*","",as.character(phospho.occupancy[substr(as.character(phospho.occupancy$seq), 16, 16)=="Y",]$seq)), method = 'bits', col_scheme='chemistry')
@@ -1271,7 +1324,7 @@ gluco.phospho <- c("Q9XTL9", "P52034", "Q9VM14")
 proteasome.phospho <- rankedSet[match(c("35701","37029","39628"), rankedSet$ENTREZ_GENE),]$UNIPROTKB
 FGF.phospho <- rankedSet[match(c("42186","42366","41020","48311","44801"), rankedSet$ENTREZ_GENE),]$UNIPROTKB
 translation.phospho <- rankedSet[match(c("41347","42761","36985","39877","39386","43594","40451","34329","40563","37430","36271","31897","38983","34352","32635","37292","39028","34363","34309","43768","33487","43349","35422"),rankedSet$ENTREZ_GENE),]$UNIPROTKB
-manual.phospho  <- c("P11995")
+manual.phospho  <- c("P11995", "P45437")
 
 ## How often is one protein phosphorylated?
 length.gluco <- length(phospho[which(sub(";.*","",phospho$Proteins) %in% c(gluco.phospho)),]$Proteins)
@@ -1305,7 +1358,6 @@ pdh <- data.frame(name = c("Pdh-E2","Pdh-E2"),
                   seq = c(length(phospho.select$seq)+1, length(phospho.select$seq)+2),
                   site = c("S252", "S252"),
                   category = c("0manual", "0manual"))
-
                   
 phospho.select <- rbind(phospho.select, pdh)
 
@@ -1318,13 +1370,13 @@ phospho.select$type <- factor(phospho.select$type, levels = unique(phospho.selec
 phospho.select <- phospho.select[phospho.select$occupancy != 0,]
 phospho.select <- phospho.select[!is.na(phospho.select$occupancy),]
 
-## Figure S6F
-cairo_pdf("FigureS6F.pdf", 10, 4)
+## Figure S5D
+#cairo_pdf("FigureS5D.pdf", 10, 4)
 ggplot(data = phospho.select, aes(x=name.unique, y = occupancy, fill = type))+
   geom_bar(stat="identity", position=position_dodge())+
   theme_classic()+
   theme(axis.text.x = element_text(angle = 90, hjust = 1))+
   scale_fill_manual(values=c("grey", "firebrick3"))+
   coord_cartesian(ylim= c(0,1))
-dev.off()
+#dev.off()
 ```
