@@ -1,5 +1,5 @@
 ---
-title: "SILAF figures"
+title: "Schober & Atanassov et al.: A quantitative map of mitochondrial protein phosphorylation upon loss of OXPHOS subunits"
 output:
   html_document:
     code_folding: hide
@@ -20,18 +20,32 @@ library("ggrepel")
 library("KEGGREST")
 library("pathview")
 library("UniProt.ws")
-load("UniProt.ws.Drosophila")
+#load("UniProt.ws.Drosophila")
 library("ggridges")
 library("forcats")
 library("ggpubr")
 library("ggseqlogo")
-library("GeneSets.Drosophila.melanogaster")
 library("stringr")
 library("limma")
+library("org.Dm.eg.db")
+library("gplots")
+library("pheatmap")
+library("ggalluvial")
 
 # The data analysis is based on several result files. Upon publication, the code and associated result files will be available as an R package.
 # Upon request, we provide this R package also before, please e-mail florian.schober@ki.se
 
+# Read functions:
+source("SILAF_header.R")
+```
+
+# Figure 1 and S1: Labelling efficiency
+The first section contains information about the general usability of the SILA fly in terms of labelling efficiency from egg to fly and within flies. 
+
+## Figure 1A
+Labelling efficiency from egg to fly - How fast is heavy lysine implemented in Drosophila larvae proteins? 
+
+```{r FIGURE 1A, echo = TRUE, tidy = TRUE, warning = FALSE}
 # Read basic data table and meta information
 info <- read.table("info.txt", sep = "\t", header = T)
 total <- read.table("proteinGroups.txt", sep = "\t", header = T)
@@ -42,17 +56,6 @@ total <- total[!total$Potential.contaminant == "+",]
 total <- total[!total$Reverse == "+",]
 total <- total[!total$Only.identified.by.site == "+",]
 
-# Read functions:
-source("SILAF_header.R")
-```
-
-# Figure 1: Labelling efficiency
-The first section contains information about the general usability of the SILA fly in terms of labelling efficiency from egg to fly and within flies. 
-
-## Figure 1A
-Labelling efficiency from egg to fly - How fast is heavy lysine implemented in Drosophila larvae proteins? 
-
-```{r FIGURE 1A, echo = TRUE, tidy = TRUE, warning = FALSE}
 # Get the intensity columns for SILAC values
 colnames <- sub("Intensity.*\\.", "", colnames(total)) 
 
@@ -136,67 +139,10 @@ ggplot()+
 #dev.off()
 ```
 
-## Figure 1B
-What proteins at 2dae don't have a 100% incorporation efficiency? 
-
-```{r Figure 1B , echo = T, tidy = TRUE, warning = FALSE}
-# Limit dendrogram to the interesting candidate d2
-histodata.limitedd2 <- histodata[histodata$sample=="d2",]
-
-# Figure 1B
-#pdf("Figure1B.pdf")
-ggplot(histodata.limitedd2, aes(x = propheavy, y = fct_rev(sample))) +
-  geom_density_ridges_gradient(aes(fill = ..x..), scale = 3, size = 0.5, panel_scaling = T) +
-  scale_fill_gradientn(colours = c("white"), name = "Labelling efficiency")+
-  theme_ridges(font_size = 13, grid = T) + theme(axis.title.y = element_blank())+
-  xlab("Labelling efficiency")+
-  scale_x_continuous(breaks=seq(from = 0, to = 1, by = 0.2))
-#dev.off()
-
-# Identify proteins in relevant categories
-#fraction.identifier(timeseries.95, "95", timeseries.102, "102", "GSEA/LOWTURNOVER", 0.9, 0.6)
-#fraction.identifier(timeseries.95, "95", timeseries.102, "102", "GSEA/LOWTURNOVER", 0.6, 0.1)
-#fraction.identifier(timeseries.95, "95", timeseries.102, "102", "GSEA/LOWTURNOVER", 0.1, 0)
-
-plot.larvae.Ribosome <-  kegg.mapping(data = timeseries.95, "Ribosome", "03010")
-plot.larvae.Proteasome <-  kegg.mapping(data = timeseries.95, "Proteasome", "03050")
-plot.larvae.OXPHOS <- kegg.mapping(data = timeseries.95, "OXPHOS", "00190")
-plot.larvae.Phagosome <- kegg.mapping(data = timeseries.95, "Phagosome", "04145")
-plot.larvae.MAPK <- kegg.mapping(data = timeseries.95, "MAPK", "04013")
-plot.larvae.ER <- kegg.mapping(data = timeseries.95, "ER", "04141")
-plot.larvae.TCA <- kegg.mapping(data = timeseries.95, "TCA", "00020")
-
-# Has to be done seperately for the AA pathway as KEGG does not return members
-AA <- c("42783","46391","35728","32940","40812","36020","32292","32297","43447","32087","33081","33351","46717","43582","48552","33172","37804","31524","246599","35692","33461","39085","31579","36060","33373","42689","43102","37143","42106","42284","43183","34554","41269","42586","42728","39132","42620","44291","38871","40443","41027","41117","36782","32545","44149","3771738","40097","39878")
-
-data.entrez <- select(up, sub(";.*", "", rownames(timeseries.95)), "ENTREZ_GENE")
-timeseries.95$entrez <- data.entrez[match(sub(";.*", "", rownames(timeseries.95)), data.entrez$UNIPROTKB),]$ENTREZ_GENE
-interest.tmp <- timeseries.95[timeseries.95$entrez %in% AA,]
-  
-plot.larvae.AA <- ggplot(data = timeseries.95, aes (x = propheavy, y = log10(Intensity.95))) +
-          geom_point(alpha = 0.2)+
-          geom_point(data = interest.tmp, aes (x = propheavy, y = log10(Intensity.95)), color = "firebrick3")+
-          geom_vline(xintercept = mean.na(interest.tmp$propheavy), color = "firebrick3")+
-          theme_classic()+
-          labs(title = "AA", x = "Labelling efficiency", "log10(Intensity)")
-
-#Figure 1B continued
-#cairo_pdf("FigureS2B.pdf", width = 5.5, height = 3)
-ggarrange(plot.larvae.Ribosome, plot.larvae.Proteasome, nrow = 1, ncol = 2)
-#dev.off()
-
-#cairo_pdf("Figure1B.pdf", width = 5.5, height = 12)
-  ggarrange(plot.larvae.AA, plot.larvae.TCA, plot.larvae.OXPHOS,
-            plot.larvae.MAPK, plot.larvae.ER,plot.larvae.Phagosome, 
-            nrow = 4, ncol = 2)
-#dev.off()
-
-```
-
-## Figure 1C and figure S2
+## Figure 1B and 1C
 Labelling efficiency on adult flies. 
 
-```{r Figure 1C and S2, message = FALSE, tidy = TRUE, warning = FALSE}
+```{r Figure 1B and 1C, message = FALSE, tidy = TRUE, warning = FALSE}
 # Get the intensity columns for SILAC values
 colnames <- sub("Intensity.*\\.", "", colnames(total)) 
 
@@ -264,45 +210,45 @@ timeseries.mean$day <- c("d02", "d04", "d06","d08","d10","d12", "d14")
 colnames(timeseries.mean) <- c( "Rep1", "Rep2", "SD1", "SD2", "day")
 rownames(timeseries.mean) <- timeseries.mean$day
 
-# Figure 1C
-#pdf("Figure1C.pdf")
+# Figure 1B
+#pdf("Figure1B.pdf")
 ggplot(histodata, aes(x = propheavy, y = fct_rev(sample))) + 
   geom_density_ridges_gradient(aes(fill = ..x..), scale = 3, size = 0.5, panel_scaling = T)+
   scale_fill_gradientn(colours = c("white", "#F2A7A7", "#D54036"), name = "Labelling efficiency")+
   theme_ridges(font_size = 13, grid = T) + theme(axis.title.y = element_blank())+
   xlab("Labelling efficiency")+
   scale_x_continuous(breaks=seq(from = 0, to = 1, by = 0.2))+
-  ggtitle("Figure S1A: 14 days labelling efficiency in flies")
+  ggtitle("Figure 1B: Timecourse labelling efficiency in flies")+
+  geom_vline(xintercept = apply(timeseries.mean[,1:2], 1, mean))
 #dev.off()
 
-# Figure S2A
-cairo_pdf("FigureS2A.pdf")
-ggplot()+
-  geom_pointrange(data = timeseries.mean, 
-                  mapping = aes(x = day, y = Rep1, ymin = Rep1-SD1, ymax = Rep1+SD1), 
-                  size=0.5, color="black", fill="white", shape=1, 
-                  position = position_jitter(w = 0, h = 0))+
-  geom_pointrange(data = timeseries.mean, 
-                  mapping = aes(x = day, y = Rep2, ymin = Rep2-SD2, ymax = Rep2+SD2), 
-                  size=0.5, color="black", fill="white", shape=22, 
-                  position = position_jitter(w = 0.4, h = 0))+
-  coord_cartesian(ylim=c(0,1)) +
-  scale_y_continuous(name="Labelling efficiency", breaks = c(0,.2,.4,.6,.8,1))+
-  theme_classic()+
-  ggtitle("Figure S2A: 14 days labelling efficiency in flies. Mean +/- SD")
-dev.off()
+# Additional figure
+# ggplot()+
+#   geom_pointrange(data = timeseries.mean, 
+#                   mapping = aes(x = day, y = Rep1, ymin = Rep1-SD1, ymax = Rep1+SD1), 
+#                   size=0.5, color="black", fill="white", shape=1, 
+#                   position = position_jitter(w = 0, h = 0))+
+#   geom_pointrange(data = timeseries.mean, 
+#                   mapping = aes(x = day, y = Rep2, ymin = Rep2-SD2, ymax = Rep2+SD2), 
+#                   size=0.5, color="black", fill="white", shape=22, 
+#                   position = position_jitter(w = 0.4, h = 0))+
+#   coord_cartesian(ylim=c(0,1)) +
+#   scale_y_continuous(name="Labelling efficiency", breaks = c(0,.2,.4,.6,.8,1))+
+#   theme_classic()
 
 
-# Figure S2B
+# Figure 1C
+
 histodata.limitedd2 <- histodata[histodata$sample=="d14",]
-pdf("FigureS2B.pdf")
+#pdf("Figure1C_part1.pdf")
 ggplot(histodata.limitedd2, aes(x = propheavy, y = fct_rev(sample))) +
   geom_density_ridges_gradient(aes(fill = ..x..), scale = 3, size = 0.5, panel_scaling = T) +
   scale_fill_gradientn(colours = c("white"), name = "Labelling efficiency")+
   theme_ridges(font_size = 13, grid = T) + theme(axis.title.y = element_blank())+
   xlab("Labelling efficiency")+
+  ggtitle("Figure 1C: Labelling efficiency in flies at 14d")+
   scale_x_continuous(breaks=seq(from = 0, to = 1, by = 0.2))
-dev.off()
+#dev.off()
 
 # Which proteins get enriched in particular fractions?
 fraction.identifier(timeseries.152, "152", timeseries.159, "159", "GSEA/Timeseries.flies", 1, 0.9)
@@ -314,6 +260,10 @@ fraction.identifier(timeseries.152, "152", timeseries.159, "159", "GSEA/Timeseri
 plot.fly.Ribosome <-  kegg.mapping(data = timeseries.152, suffix = "Ribosome", pathway = "03010")
 plot.fly.OXPHOS <-  kegg.mapping(data = timeseries.152, "OXPHOS", "00190")
 plot.fly.TCA <-  kegg.mapping(data = timeseries.152, "TCA", "00020")
+
+
+# Has to be done seperately for the AA pathway as KEGG does not return members
+AA <- c("42783","46391","35728","32940","40812","36020","32292","32297","43447","32087","33081","33351","46717","43582","48552","33172","37804","31524","246599","35692","33461","39085","31579","36060","33373","42689","43102","37143","42106","42284","43183","34554","41269","42586","42728","39132","42620","44291","38871","40443","41027","41117","36782","32545","44149","3771738","40097","39878")
 
 # Metab has to be done seperately due to the structure of the KEGG pathway
 data.entrez <- select(up, sub(";.*", "", rownames(timeseries.152)), "ENTREZ_GENE")
@@ -333,10 +283,65 @@ plot.fly.Metabolism <- ggplot(data = timeseries.152, aes (x = propheavy, y = log
 
 
 # Figure S2C
-cairo_pdf("FigureS2C.pdf", width = 12, height = 3)
+#cairo_pdf("Figure1C_part2.pdf", width = 12, height = 3)
 ggarrange(plot.fly.Metabolism, plot.fly.OXPHOS, plot.fly.Ribosome, plot.fly.TCA, nrow = 1, ncol = 4)
-dev.off()
+#dev.off()
 ```
+
+## Figure 1D
+What proteins at 2dae don't have a 100% incorporation efficiency? 
+
+```{r Figure 1B , echo = T, tidy = TRUE, warning = FALSE}
+# Limit dendrogram to the interesting candidate d2
+histodata.limitedd2 <- histodata[histodata$sample=="d2",]
+
+# Figure 1D
+#pdf("Figure1D_part1.pdf")
+ggplot(histodata.limitedd2, aes(x = propheavy, y = fct_rev(sample))) +
+  geom_density_ridges_gradient(aes(fill = ..x..), scale = 3, size = 0.5, panel_scaling = T) +
+  scale_fill_gradientn(colours = c("white"), name = "Labelling efficiency")+
+  theme_ridges(font_size = 13, grid = T) + theme(axis.title.y = element_blank())+
+  xlab("Labelling efficiency")+
+  scale_x_continuous(breaks=seq(from = 0, to = 1, by = 0.2))
+#dev.off()
+
+# Identify proteins in relevant categories
+#fraction.identifier(timeseries.95, "95", timeseries.102, "102", "GSEA/LOWTURNOVER", 0.9, 0.6)
+#fraction.identifier(timeseries.95, "95", timeseries.102, "102", "GSEA/LOWTURNOVER", 0.6, 0.1)
+#fraction.identifier(timeseries.95, "95", timeseries.102, "102", "GSEA/LOWTURNOVER", 0.1, 0)
+
+plot.larvae.Ribosome <-  kegg.mapping(data = timeseries.95, "Ribosome", "03010")
+plot.larvae.Proteasome <-  kegg.mapping(data = timeseries.95, "Proteasome", "03050")
+plot.larvae.OXPHOS <- kegg.mapping(data = timeseries.95, "OXPHOS", "00190")
+plot.larvae.Phagosome <- kegg.mapping(data = timeseries.95, "Phagosome", "04145")
+plot.larvae.MAPK <- kegg.mapping(data = timeseries.95, "MAPK", "04013")
+plot.larvae.ER <- kegg.mapping(data = timeseries.95, "ER", "04141")
+plot.larvae.TCA <- kegg.mapping(data = timeseries.95, "TCA", "00020")
+
+data.entrez <- select(up, sub(";.*", "", rownames(timeseries.95)), "ENTREZ_GENE")
+timeseries.95$entrez <- data.entrez[match(sub(";.*", "", rownames(timeseries.95)), data.entrez$UNIPROTKB),]$ENTREZ_GENE
+interest.tmp <- timeseries.95[timeseries.95$entrez %in% AA,]
+  
+plot.larvae.AA <- ggplot(data = timeseries.95, aes (x = propheavy, y = log10(Intensity.95))) +
+          geom_point(alpha = 0.2)+
+          geom_point(data = interest.tmp, aes (x = propheavy, y = log10(Intensity.95)), color = "firebrick3")+
+          geom_vline(xintercept = mean.na(interest.tmp$propheavy), color = "firebrick3")+
+          theme_classic()+
+          labs(title = "AA", x = "Labelling efficiency", "log10(Intensity)")
+
+#Figure 1D continued
+#cairo_pdf("Figure1D_part2.pdf", width = 5.5, height = 3)
+ggarrange(plot.larvae.Ribosome, plot.larvae.Proteasome, nrow = 1, ncol = 2)
+#dev.off()
+
+#cairo_pdf("Figure1D_part3.pdf", width = 5.5, height = 12)
+  ggarrange(plot.larvae.AA, plot.larvae.TCA, plot.larvae.OXPHOS,
+            plot.larvae.MAPK, plot.larvae.ER,plot.larvae.Phagosome, 
+            nrow = 4, ncol = 2)
+#dev.off()
+
+```
+
 
 # Figure S1: Quality control
 (1) Why do we not use Arg/Lys double labelling? (2) Is SILAF as accurate as LFQ? The "read.ms" function is described in detail in the header file ("SILAF_header.R").
@@ -354,7 +359,7 @@ mod.spec.pept$containsK <- grepl("K", mod.spec.pept$Sequence)
 mod.spec.pept$containsKR <- grepl("R|K", mod.spec.pept$Sequence)
 mod.spec.pept$containsP <- grepl("P", mod.spec.pept$Sequence)
 
-## Figure S1A1:
+## Figure S1C1:
 mod.spec.pept %>%
   filter(containsKR == TRUE) %>%
   mutate(`Modification state` = ifelse(Modifications %in% "Unmodified","Unmodified",
@@ -372,7 +377,7 @@ mod.spec.pept %>%
   theme_bw()+
   ggsave(filename = "Proline/ModificationstateKR.pdf")
 
-## Figure S1A2:
+## Figure S1C2:
 mod.spec.pept %>%
   filter(containsK == TRUE) %>%
   mutate(`Modification state` = ifelse(Modifications %in% "Unmodified","Unmodified",
@@ -390,7 +395,7 @@ mod.spec.pept %>%
   theme_bw()+
   ggsave(filename = "Proline/ModificationstateK.pdf")
 
-## Figure S1B1:
+## Figure S1D1:
 mod.spec.pept %>%
   filter(containsP == TRUE) %>%
   filter(containsK == TRUE) %>%
@@ -409,7 +414,7 @@ mod.spec.pept %>%
   theme_classic()+
   ggsave(filename = "Proline/ModificationstateP+K.pdf")
 
-## Figure S1B2:
+## Figure S1D2:
 mod.spec.pept %>%
   filter(containsP == TRUE) %>%
   filter(containsKR == TRUE) %>%
@@ -457,21 +462,21 @@ geom_split_violin <- function (mapping = NULL, data = NULL, stat = "ydensity", p
 
 # Look at non-normalized values in the six Arg/Lys samples and convert them to a different data.frame format readable for split violin
 length <- length(total$Ratio.H.L.121)
-argconv <- data.frame(x =   rep("Precision", length*6),
-                      y =   c(total$Ratio.H.L.122, total$Ratio.H.L.123, total$Ratio.H.L.124, 
-                            total$Ratio.H.L.142, total$Ratio.H.L.143, total$Ratio.H.L.144),
-                      fill= c(rep("Lys6", 3*length), rep("Arg10Lys6", 3*length)))
+argconv <- data.frame(x =   rep("Precision", length*2),
+                      y =   c(total$Ratio.H.L.124,# total$Ratio.H.L.119, total$Ratio.H.L.120, 
+                            total$Ratio.H.L.142),#, total$Ratio.H.L.143, total$Ratio.H.L.144),
+                      fill= c(rep("Lys6", 1*length), rep("Arg10Lys6", 1*length)))
 
 argconv$x <- as.factor(argconv$x)
 argconv$y <- log2(argconv$y)
 
-# Figure S1C
-pdf("FigureS1C.pdf", 5, 3)
+# Figure S1A
+#pdf("FigureS1A.pdf", 5, 3)
 ggplot(argconv, aes(x, y, fill=fill)) + 
   geom_hline(yintercept = 0) +
   geom_split_violin()+
   theme_classic()
-dev.off()
+#dev.off()
 
 # Look at non-normalized values in six comparable Lys samples and convert them to a different data.frame format readable for split violin
 lysCeffect <- data.frame(x = c(rep("Precision", length*6), rep("Monster", length*6)),
@@ -482,13 +487,13 @@ lysCeffect <- data.frame(x = c(rep("Precision", length*6), rep("Monster", length
                       fill= c(rep("Lys6", 3*length), rep("Arg10Lys6", 3*length),
                             rep("Lys6", 3*length), rep("Arg10Lys6", 3*length)))
 
-# Figure S1D
-pdf("FigureS1d.pdf", 5, 3)
+# Figure S1B
+#pdf("FigureS1B.pdf", 5, 3)
 ggplot(lysCeffect, aes(x, log2(y), fill=fill)) + 
   geom_hline(yintercept = 0) +
   geom_split_violin()+
   theme_classic()
-dev.off()
+#dev.off()
 
 detach("package:tidyverse", unload=TRUE)
 ```
@@ -589,12 +594,42 @@ pairs(precision.LFQ.holidic,
 #dev.off()
 ```
 
-# Figure 2: Comparison of the results to previously published data
+# Figure S2: Comparison of the results to previously published data by comparing male and female flies
 
-## Sex specific proteome: Figure S3
+## Fly/Larvae dynamic range, Figure S2A
+```{r Dynamic range}
+dynamic <- timeseries[,!grepl(".*[LH].*", colnames(timeseries))]
+
+library("tidyverse")
+dynamic <- gather(dynamic, "sample", "Intensity")
+dynamic <- arrange(dynamic, sample, Intensity)
+dynamic[dynamic == 0] <- NA
+dynamic <- dynamic[!is.na(dynamic$Intensity),]
+
+dynamic <- dynamic[as.numeric(sub("Intensity\\.", "", dynamic$sample)) > 101,] # Include just one replicate for better understanding the data
+
+a <- c()
+for(i in c(1:7)){
+  v <- c(1:as.vector(table(dynamic$sample))[i])
+  a <- c(a,v)
+}
+
+dynamic$order <- a
+
+#cairo_pdf("FigureS2A.pdf", 5, 5)
+ggplot(data = dynamic, aes (x = order, y = log2(Intensity), col = sample))+
+  geom_point()+
+  scale_color_brewer(palette = "Reds")+
+  theme_bw()
+#dev.off()
+detach("package:tidyverse", unload=TRUE)
+
+```
+
+## Sex specific proteome: Figure S2B-D
 ... which has been done in the original SILAC fly paper from 2010 (Sury et al.). We try to reprocude the results and align them to the old, re-analysed data.
 
-```{r Figure S3, tidy = TRUE, warning = FALSE}
+```{r Figure S2, tidy = TRUE, warning = FALSE}
 # Read data. The dataset was collected seperately and is thus not included in the total dataset used above
 frac.flysex <- read.table("MaleFemale/Frac/with_requantify/proteinGroups.txt", header = T, sep = "\t")
 flysex.stats <- data.frame(Ratio.H.L.normalized.0913_QE_IA_NL_FS_125 = frac.flysex$Ratio.H.L.normalized.SILAF.F.vs.M.Fod,
@@ -636,7 +671,7 @@ select = abs(apply(flysex.stats[,1:2], 1, mean.na)) > 4.0 # The ones to highligh
 #Calculate R:
 round(cor(flysex.stats$Ratio.H.L.normalized.0913_QE_IA_NL_FS_125, flysex.stats$Ratio.H.L.normalized.0913_QE_IA_NL_FS_126, use = "complete.obs"), digits=4)
 
-cairo_pdf("FigureS3A.pdf")
+#cairo_pdf("FigureS2B.pdf")
 ggplot(data = flysex.stats, aes(x = Ratio.H.L.normalized.0913_QE_IA_NL_FS_125, y = Ratio.H.L.normalized.0913_QE_IA_NL_FS_126))+
   geom_abline(intercept = 0, slope = 1, lty = "dotted")+
   geom_hline(yintercept = 0, col = "black")+
@@ -654,12 +689,12 @@ ggplot(data = flysex.stats, aes(x = Ratio.H.L.normalized.0913_QE_IA_NL_FS_125, y
       point.padding = 0.3) +
    theme_classic()+
   labs(title = "S4A: Rep 1 against rep 2", x = "log2(F/M Rep 1)", y = "log2(F/M Rep 2)")
-dev.off()
+#dev.off()
 
 # Global look at the data: Gene Set Enrichment Analysis
 ## Generate the table to upload to WebGestalt
 gsea.flysex <- data.frame(flysex.stats$entrez, apply(flysex.stats[,1:2], 1, mean.na))
-write.table(gsea.flysex, "GSEA/Flysex/GSEA.Flysex.deep.rnk", sep = "\t", row.names = FALSE, col.names = FALSE, quote = FALSE)
+#write.table(gsea.flysex, "GSEA/Flysex/GSEA.Flysex.deep.rnk", sep = "\t", row.names = FALSE, col.names = FALSE, quote = FALSE)
 
 ## GSEA plots: Barchart and volcano plot
 gsea.flysex <- read.table("GSEA/Flysex/Flysex_GOBP_deep/enrichment_results_wg_result1526754150.txt", sep = "\t", header = T)
@@ -667,7 +702,7 @@ gsea.flysex <- gsea.flysex[c(1:5,11:15),]
 gsea.flysex <- gsea.flysex[order(gsea.flysex$NES, decreasing = T),]
 
 ### Plot figure S4B. NES is negative as the H/L ratios were reversed to keep the female/male ratio
-cairo_pdf("FigureS3B.pdf")
+#cairo_pdf("FigureS3C.pdf")
 ggplot(gsea.flysex, aes(x=NES, y=description, label=description)) + 
   geom_point(stat="identity", size=4)  +
   geom_segment(aes(y = description, 
@@ -678,7 +713,7 @@ ggplot(gsea.flysex, aes(x=NES, y=description, label=description)) +
   theme_classic()+
   geom_vline(xintercept = 0, lty = "dotted")+
   labs(title = "S3B: GSEA using Webgestalt on sex specificity", x = "FDR", y = "Categories")
-dev.off()
+#dev.off()
 
 # Import the Sury 2010 et al. dataset (doi: 10.1074/mcp.M110.000323)
 old.sex <- read.table("MaleFemale/Old/IA_FS_our_SILAF_published_SILAF/proteinGroups.txt", header = T, sep = "\t")
@@ -718,7 +753,7 @@ sex.of.interest <- sex.of.interest[!is.na(sex.of.interest$protein.id),]
 round(cor(flysex.comparative$STHLM.mean, flysex.comparative$OLD, use = "complete.obs"), digits=4)
 
 ## Figure S3C
-#cairo_pdf("FigureS3C.pdf")
+#cairo_pdf("FigureS3D.pdf")
 ggplot(data = flysex.comparative, aes (x = STHLM.mean, y = OLD))+
   geom_point(alpha = 0.3)+
   geom_point(data = sex.of.interest, color = "red")+
@@ -734,310 +769,17 @@ ggplot(data = flysex.comparative, aes (x = STHLM.mean, y = OLD))+
 #dev.off()
 ```
 
-## The bsf/DmLRPPRC1 knockdown fly
-The fly homologue of LRPPRC, BSF, was knocked down using the UAS-GAL4 system. Two kinds of proteomic analysis were performed. (1) A classical SILAF experiment using light and heavy controls vs knockdowns in climbing larvae and (2) A ratio to ratio analysis of yeast food grown flies, spiking in wDah peptides from heavy holidic food.
+# Holidic to yeast food proteome comparison: Figure 2 and S3
+To what extent is the fly grown on holidic food differing from yeast grown flies?
 
-### Classical SILAF: Figure S4
+## Differential proteome
 
-```{r Figure S4, tidy = TRUE, warning = FALSE}
-# Read in data >>
-BSF.larvae.stats <- read.table("Preseus_stats/BSF.LARVAE.txt", header = T, sep = "\t")
-BSF.larvae <- read.ms(data = total, meta = info, name = "BSF.LARVAE", type = "SILAF", sum.column = "FALSE", inf.clearing = "to.NA", plots = "TRUE", stats = BSF.larvae.stats, normalize = "FALSE")
-
-# Add an entrez ID column >>
-entrez <- select(up, sub(".*,", "", BSF.larvae.stats$Majority.protein.IDs), "ENTREZ_GENE") #Maps entrez IDs to uniprot IDs
-entrez <- entrez[!duplicated(entrez$UNIPROTKB),]
-BSF.larvae.stats$entrez <- entrez$ENTREZ_GENE[match(entrez$UNIPROTKB, sub(".*,", "", BSF.larvae.stats$Majority.protein.IDs))]
-
-# Make a volcano plot with marked OXPHOS >> 
-## Calculate the adjusted p-values using limma moderated t-test >
-rownames(BSF.larvae$stats) <- BSF.larvae$stats$Protein.IDs
-
-fit <- lmFit(BSF.larvae$stats[,1:4])
-fit <- eBayes(fit)
-limma.result <- topTable(fit,number = Inf,confint = TRUE, adjust.method = "fdr")
-
-BSF.larvae$stats$limma.padj <- limma.result[match(rownames(BSF.larvae$stats), rownames(limma.result)),]$adj.P.Val
-BSF.larvae$plots$limma.padj <- limma.result[match(rownames(BSF.larvae$plots), rownames(limma.result)),]$adj.P.Val
-
-## Return OXPHOS subunits in the data >
-pathview.tmp <- apply(BSF.larvae.stats[,1:4],1,mean.na)
-names(pathview.tmp) <- BSF.larvae.stats$entrez
-
-pathway.out <- pathview(gene.data =  pathview.tmp, pathway.id = "00190",
-                        species = "dme", gene.idtype="entrez", out.suffix = "OXPHOS", 
-                        limit=list(gene=5), low="blue", high="red", mid="gray", bins=list(gene=50)) # Generates a dummy KEGG map whose members can be extracted
-
-kegg.id <- keggConv("dme", "up") # Downloads a repository mapping all kegg names to uniprot identifiers
-pathway.mb.tmp <- sub("up:","", names(kegg.id[match(pathway.out$plot.data.gene$kegg.names, 
-                                                    sub(paste("dme", ":", sep = ""), "", kegg.id))]))
-
-pathway.mb.tmp.entrez <- select(up, pathway.mb.tmp, "ENTREZ_GENE") # Final list with Entrez codes of KEGG OXPHOS subunits
-
-entrez <- select(up, sub(".*,", "", BSF.larvae$stats$Majority.protein.IDs), "ENTREZ_GENE") # Maps entrez IDs to uniprot IDs
-entrez <- entrez[!duplicated(entrez$UNIPROTKB),]
-BSF.larvae$plots$entrez <- entrez$ENTREZ_GENE[match(entrez$UNIPROTKB, sub(".*,", "", rownames(BSF.larvae$plots)))]
-BSF.larvae$stats$entrez <- entrez$ENTREZ_GENE[match(entrez$UNIPROTKB, sub(".*,", "", rownames(BSF.larvae$stats)))]
-
-BSF.larvae$plots$OXPHOS <- BSF.larvae$plots$entrez %in% pathway.mb.tmp.entrez$ENTREZ_GENE # Indicates the OXPHOS subunits in the plots file
-
-## Exclude the ATPases that are not directly relevant in OXPHOS but in the KEGG pathway
-OXPHOS.manual <- sub("ND.*|NP.*|cyp.*|RFe.*|UQCR.*|CO.*|lev.*|CG96.*|CoV.*|ATPsyn.*|CG469*|Osc*|Sdh.*", TRUE, 
-                     BSF.larvae$plots$Gene.names)
-OXPHOS.manual <- ifelse(OXPHOS.manual!=TRUE, FALSE, OXPHOS.manual)
-BSF.larvae$plots$OXPHOS <- BSF.larvae$plots$OXPHOS*as.logical(OXPHOS.manual)
-
-## Figure S4D, a volcano plot
-cairo_pdf("FigureS4D.pdf")
-ggplot(data = BSF.larvae$plots, aes(x = logfc, y = -log10(limma.padj))) +
-    geom_point(data = BSF.larvae$plots[BSF.larvae$plots$OXPHOS == 0,], aes(color="red"), alpha = 0.6)+
-    geom_point(data = BSF.larvae$plots[BSF.larvae$plots$OXPHOS == 1,], aes(color="blue"), alpha = 1)+
-    scale_color_manual(values = c( "brown4", "grey"))+
-    theme_classic()+
-    labs(x = "log2(fold change)", y = "-log10(adjusted p-value)")+
-    geom_hline(yintercept = -log10(0.001), color = "black", lty = "dotted")+
-    geom_text_repel(data = BSF.larvae$plots[BSF.larvae$plots$OXPHOS == TRUE,], aes(label = Gene.names))
-    coord_cartesian(xlim = c(-4,4))
-dev.off()
-
-#BSF.larvae$stats$mean <- apply(BSF.larvae$stats[,1:4], 1, mean.na)
-#write.table(BSF.larvae$stats, "/Users/florsc/Documents/1_Projects/_SAMC/SILAF/Submission/BSF.larvae.txt",  sep = "\t")
-```
-
-### Ratio/ratio SILAF: Figure 2A, S4A and S4B
-Similar principle as before, see explanations in "classical SILAF".
-
-```{r Figure 2A S4A-B, tidy = TRUE, warning = FALSE}
-# Read in data
-BSF.flies.stats <- read.table("Preseus_stats/BSF.RATIO.txt", header = T, sep = "\t")
-BSF.flies <- read.ms(data = total, meta = info, name = "BSF.RATIO", type = "SILAF", sum.column = "FALSE", inf.clearing = "to.NA", plots = "TRUE", stats = BSF.flies.stats, normalize = "FALSE", stat.test = "X.Log.welch.p.value", diff.value = "welch.Difference")
-
-# Calculate the log2fc and add to the plots list. Be aware that the stats-file contains already log2 transformed values to perform the t-test.
-# However, to correctly calculate the log2 fc, this action has to be reversed by 2^x.
-BSF.flies$plots$logfc<- log2(apply(2^BSF.flies$stats[,1:4], 1, mean.na)/apply(2^BSF.flies$stats[,5:8], 1, mean.na))
-
-# Calculate adjusted p-values for plotting using limma moderated t-test
-rownames(BSF.flies$stats) <- BSF.flies$stats$Protein.IDs
-
-design <- cbind(Grp1 = 1, Grp2vs1=c(0,0,0,0,1,1,1,1))
-fit <- lmFit(BSF.flies$stats[,1:8], design)
-fit <- eBayes(fit)
-limma.result <- topTable(fit, number = Inf,confint = TRUE, coef = 2, adjust.method = "fdr")
-
-BSF.flies$stats$limma.padj <- limma.result[match(rownames(BSF.flies$stats), rownames(limma.result)),]$adj.P.Val
-BSF.flies$plots$limma.padj <- limma.result[match(rownames(BSF.flies$plots), rownames(limma.result)),]$adj.P.Val
-BSF.flies$plots$limma.fc <- limma.result[match(rownames(BSF.flies$plots), rownames(limma.result)),]$logFC
-
-# Levels of BSF:
-bsf.column <- BSF.flies$int["Q9VJ86",]
-heavy = subset(bsf.column, select = grep("Intensity\\.H\\.", colnames(bsf.column)))
-light = subset(bsf.column, select = grep("Intensity\\.L\\.", colnames(bsf.column)))
-data <- data.frame(light = t(light), heavy = t(heavy))
-rownames(data) <- c(127:134)
-colnames(data) <- c("light", "heavy")
-
-data$genotype <- c(rep("Control", 4), rep("BSF KD", 4))
-data$ratio <- log2(2^(data$light)/2^(data$heavy))
-
-# Figure S4A
-#cairo_pdf("FigureS4A.pdf")
-ggplot(data, aes(x=genotype, y=ratio)) + 
-  geom_jitter(position=position_jitter(0.2))+
-  theme_classic()+
-  labs(title = "Light/Heavy BSF", x = "Genotype", y = "log2(Intensity light / Intensity heavy)")+
-  geom_hline(yintercept = 0, lty = "dotted")
-#dev.off()
-
-# Add an entrez column for GSEA submission and further OXPHOS mapping
-entrez <- select(up, sub(";.*", "", BSF.flies$stats$Majority.protein.IDs), "ENTREZ_GENE") #Maps entrez IDs to uniprot IDs
-entrez <- entrez[!duplicated(entrez$UNIPROTKB),]
-BSF.flies$plots$entrez <- entrez$ENTREZ_GENE[match(entrez$UNIPROTKB, sub(";.*", "", rownames(BSF.flies$plots)))]
-BSF.flies$stats$entrez <- entrez$ENTREZ_GENE[match(entrez$UNIPROTKB, sub(";.*", "", BSF.flies$stats$Protein.IDs))]
-
-# Write GSEA table
-gsea.bsf.flies <- data.frame(BSF.flies$plots$entrez, BSF.flies$plots$logfc)
-write.table(gsea.bsf.flies, "GSEA/BSF.flies.rnk", sep = "\t", row.names = FALSE, quote = FALSE, col.names= FALSE)
-
-# The Gene Set Enrichment Analysis is done using the online tool of Webgestalt.
-
-# ... and then import as a formatted table to plot a GSEA graph
-BSF.FLIES.GSEA.table <- read.table("GSEA/BSF.FLIES/BSF.FLIES.GSEA.txt", sep = "\t", header = TRUE)
-BSF.FLIES.GSEA.table$log10.FDR  <- -log10(BSF.FLIES.GSEA.table$FDR)
-
-BSF.FLIES.GSEA.table$NES <- as.numeric(BSF.FLIES.GSEA.table$NES)
-BSF.FLIES.GSEA.table <- BSF.FLIES.GSEA.table[order(BSF.FLIES.GSEA.table$NES, decreasing = T),]
-color <- c("blue", "orange")[BSF.FLIES.GSEA.table$database]
-
-# Figure S4E
-#cairo_pdf("FigureS4E.pdf")
-ggplot(BSF.FLIES.GSEA.table, aes(x=NES, y=description, label=description)) + 
-  geom_point(stat="identity", color=color, size=6)  +
-  geom_segment(aes(y = description, 
-                   x = 0, 
-                   yend = description, 
-                   xend = NES), 
-               color = color)+
-  scale_y_discrete(limits=BSF.FLIES.GSEA.table$description)+
-  theme_bw()+
-  ylab("Database term")+
-  geom_vline(xintercept = 0, lty = "dotted")+
-  ggtitle("GSEA - KEGG blue, Reactome orange")
-#dev.off()
-
-# Color the OXPHOS subunits in the Volcano plot
-## The first part is solely to return oxphos subunits >
-pathview.tmp <- BSF.flies$plots$logfc
-names(pathview.tmp) <- BSF.flies$plots$entrez
-
-pathway.out <- pathview(gene.data =  pathview.tmp, pathway.id = "00190",
-                        species = "dme", gene.idtype="entrez", out.suffix = "test", 
-                        limit=list(gene=5), low="blue", high="red", mid="gray", bins=list(gene=50)) # Generates a dummy KEGG map whose members can be extracted
-
-kegg.id <- keggConv("dme", "up") # Downloads a repository mapping all kegg names to uniprot identifiers
-pathway.mb.tmp <- sub("up:","", names(kegg.id[match(pathway.out$plot.data.gene$kegg.names, 
-                                                    sub(paste("dme", ":", sep = ""), "", kegg.id))]))
-
-pathway.mb.tmp.entrez <- select(up, pathway.mb.tmp, "ENTREZ_GENE") # Final list with Entrez codes of KEGG OXPHOS subunits
-
-BSF.flies$plots$OXPHOS <- BSF.flies$plots$entrez %in% pathway.mb.tmp.entrez$ENTREZ_GENE # Indicates the OXPHOS subunits in the plots file
-
-## Finally, exclude the ATPases that are not directly relevant in OXPHOS but in the KEGG pathway
-OXPHOS.manual <- sub("ND.*|NP.*|cyp.*|RFe.*|UQCR.*|CO.*|lev.*|CG96.*|CoV.*|ATPsyn.*|CG469*|Osc*|Sdh.*", TRUE, 
-                     BSF.flies$plots$Gene.names)
-OXPHOS.manual <- ifelse(OXPHOS.manual!=TRUE, FALSE, OXPHOS.manual)
-BSF.flies$plots$OXPHOS <- as.logical(OXPHOS.manual)
-
-## Figure 2B
-#cairo_pdf("Figure2B.pdf")
-ggplot(data = BSF.flies$plots, aes(x = logfc, y = -log10(limma.padj))) +
-    geom_point(data = BSF.flies$plots[BSF.flies$plots$OXPHOS == 0,], aes(color="grey"), alpha = 0.6)+
-    geom_point(data = BSF.flies$plots[BSF.flies$plots$OXPHOS == 1,], aes(color="firebrick3"), alpha = 1, size = 2)+
-    scale_color_manual(values = c("firebrick3", "grey"))+
-    theme_classic()+
-    labs(x = "log2(fold change)", y = "-log10(adjusted p-value)")+
-    geom_hline(yintercept = -log10(0.05), color = "black", lty = "dotted")+
-    coord_cartesian(xlim = c(-4,4))
-#dev.off()
-
-# Create a bargraph of OXPHOS subunits with SD. 
-## Calculate the pooled standard deviation w/o log2 fc
-means.bsf <- data.frame(KD1 = apply(2^BSF.flies$stats[,1:4], 1, mean.na)/2^BSF.flies$stats[,5],
-                        KD2 = apply(2^BSF.flies$stats[,1:4], 1, mean.na)/2^BSF.flies$stats[,6],
-                        KD3 = apply(2^BSF.flies$stats[,1:4], 1, mean.na)/2^BSF.flies$stats[,7],
-                        KD4 = apply(2^BSF.flies$stats[,1:4], 1, mean.na)/2^BSF.flies$stats[,8])
-BSF.flies$plots$mean.fc <- apply(means.bsf, 1, mean.na)
-BSF.flies$plots$sd <- apply(means.bsf, 1, sd.na)
-
-BSF.flies$plots <- cbind(BSF.flies$plots, means.bsf)
-
-oxphos.bsf <- BSF.flies$plots[BSF.flies$plots$OXPHOS == TRUE,]
-
-oxphos.complex <- sub("ND.*|NP.*", "CI", oxphos.bsf$Gene.names)
-oxphos.complex <- sub("cyp.*|RFe.*|UQCR.*", "CIII", oxphos.complex) 
-oxphos.complex <- sub("CO.*|lev.*|CG96.*|CoV.*", "CIV", oxphos.complex)
-oxphos.complex <- sub("ATPsyn.*|CG469*|Osc*", "CV", oxphos.complex)
-oxphos.complex <- sub("Sdh.*", "CII", oxphos.complex)
-
-oxphos.bsf$complex <- oxphos.complex
-oxphos.bsf <- oxphos.bsf[order(oxphos.bsf$Gene.names),]
-oxphos.bsf <- oxphos.bsf[order(oxphos.bsf$complex),]
-oxphos.bsf$Gene.names <- factor(oxphos.bsf$Gene.names, levels = oxphos.bsf$Gene.names)
-
-# Plot Figure 2C
-#cairo_pdf("Figure2C.pdf", height = 3.5)
-ggplot(oxphos.bsf, aes(x=Gene.names, y=mean.fc)) + 
-    geom_bar(position="dodge", stat="identity")+
-    geom_errorbar(aes(ymin=mean.fc-sd, ymax=mean.fc+sd),
-                  width=.2,                    # Width of the error bars
-                  position=position_dodge(.9))+
-  geom_hline(yintercept = 1, lty = "dotted")+
-  geom_point(data=oxphos.bsf,aes(Gene.names, y=oxphos.bsf$KD1),position="dodge", alpha = 0.5, size = 0.5, fill= "white", color = "black")+
-  geom_point(data=oxphos.bsf,aes(Gene.names, y=oxphos.bsf$KD2),position="dodge", alpha = 0.5, size = 0.5, fill= "white", color = "black")+
-  geom_point(data=oxphos.bsf,aes(Gene.names, y=oxphos.bsf$KD3),position="dodge", alpha = 0.5, size = 0.5, fill= "white", color = "black")+
-  geom_point(data=oxphos.bsf,aes(Gene.names, y=oxphos.bsf$KD4),position="dodge", alpha = 0.5, size = 0.5, fill= "white", color = "black")+
-  theme_classic()+
-  theme(axis.text.x = element_text(angle = 90, hjust = 1))
-#dev.off()
-
-#BSF.flies$stats$mean <- BSF.flies$plots$logfc
-#write.table(BSF.flies$stats, "/Users/florsc/Documents/1_Projects/_SAMC/SILAF/Submission/BSF.flies.txt",  sep = "\t")
-```
-
-### Overlap of the classical approach versus SILAF: Figure 2A/B and S4E
-
-```{r Figure 1C and S5E, tidy = TRUE, warning = FALSE}
-# Overlap Ratio/Larvae
-## Figure 2A/S4B: Piecharts
-
-### Ratio
-table(BSF.flies$plots$limma.padj<0.001)
-x <- c(282, 883)
-labelsx <- c("Significantly changed (282)", "Unchanged (883)")
-colsx <- c("orange", "grey")
-
-### Larvae
-table(BSF.larvae$plots$limma.padj<0.001)
-y <- c(76, 1175)
-labelsy <- c("Significantly changed (76)", "Unchanged (1175)")
-colsy <- c("orange", "grey")
-
-pdf("Figure2AB.pdf")
-par(mfrow=c(2,1))
-pie(x,labels = labelsx, col = colsx, clockwise = T, init.angle = 90)
-pie(y,labels = labelsy, col = colsy, clockwise = T, init.angle = 90)
-dev.off()
-
-## Figure S4C: Fold change overlap
-bsf.all.prot <- unique(c(as.character(rownames(BSF.flies$plots)), as.character(rownames(BSF.larvae$plots)))) # Get all proteins in both datasets
-bsf.comparison <- data.frame(bsf.all.prot,
-                        as.numeric(as.character(BSF.larvae$plots[match(bsf.all.prot, rownames(BSF.larvae$plots)),]$logfc)),
-                             BSF.larvae$plots[match(bsf.all.prot, rownames(BSF.larvae$plots)),]$Gene.names,
-                        as.numeric(as.character(BSF.flies$plots[match(bsf.all.prot, rownames(BSF.flies$plots)),]$logfc)),
-                             BSF.flies$plots[match(bsf.all.prot, rownames(BSF.flies$plots)),]$Gene.names) # Attach the fold change to them
-
-bsf.comparison <- replace(bsf.comparison, is.na(bsf.comparison), 0)
-
-rownames(bsf.comparison) <- bsf.comparison$bsf.all.prot
-bsf.comparison <- bsf.comparison[,-1]
-colnames(bsf.comparison) <- c("Larvae", "Gene.name.L", "Flies", "Gene.name.F")
-
-POI <- bsf.comparison[abs(bsf.comparison$Larvae) > 1 & abs(bsf.comparison$Flies) > 1,] # Interesting targets are those ones with abs(log2-fc) > 1
-POI.color <- ifelse(abs(bsf.comparison$Larvae) > 1 & abs(bsf.comparison$Flies) > 1, "brown4", "grey")
-POI.alpha <- ifelse(abs(bsf.comparison$Larvae) > 1 & abs(bsf.comparison$Flies) > 1, 1, 0.6)
-
-# Calculate Pearson's R
-round(cor(bsf.comparison$Larvae, bsf.comparison$Flies, use = "complete.obs"), digits=4)
-
-#cairo_pdf("FigureS4C.pdf")
-ggplot(bsf.comparison, aes(x = Larvae, y = Flies))+
-  geom_hline(yintercept = 0)+
-  geom_vline(xintercept = 0)+
-  geom_point(color = POI.color, alpha = POI.alpha)+
-  scale_color_manual(values = c( "brown4", "grey"))+
-  theme_classic()+
-  coord_fixed(ratio = 1)+
-  geom_abline(slope = 1, intercept = 0, lty = "dotted")+
-  geom_text_repel(data = POI,
-    aes(x = Larvae, y = Flies, label = Gene.name.L),
-    size = 3,
-    box.padding = 0.25,
-    point.padding = 0.4)+
-  labs(title = "Comparing BSF results from larvae and flies", x = "log2fc from larval data", y = "log2fc from fly data")
-#dev.off()
-
-```
-
-
-# Part 4: Applying SILAF to a new problem
-... which is comparing the holidic food to the traditional yeast food source
-
-## Proteome comparison: Figure 2A and S6A
-To what extent is the fly grown on holidic food differing from yeast grown flies? Both SILAF and LFQ were performed and compared here. Positive values are up in artificial.
-
-```{r Figure 3A and S6A, tidy = TRUE, warning = FALSE}
-# Read data. The data was generated by fractionation and is not included in the "total" dataset
+```{r Holidic_Proteome, tidy = TRUE, warning = FALSE}
+library("tidyverse")
 holidic.proteome <- read.table("Holidic/proteinGroups.txt", header = T, sep = "\t")
 
+## Filtering
+## Filtering
 holidic.proteome <- holidic.proteome[!holidic.proteome$Potential.contaminant == "+",]
 holidic.proteome <- holidic.proteome[!holidic.proteome$Reverse == "+",]
 holidic.proteome <- holidic.proteome[!holidic.proteome$Only.identified.by.site == "+",]
@@ -1068,10 +810,23 @@ holidic.proteome.red$Ratio <- apply(holidic.proteome.red[,4:5],1,mean.na)
 holidic.proteome.red <- holidic.proteome.red[!is.na(holidic.proteome.red$Ratio),] 
 
 rankedSet <- select(up, sub(";.*","", holidic.proteome.red$ID), "ENTREZ_GENE")
+
 monster.gsea <- data.frame(entrez = rankedSet$ENTREZ_GENE, 
                            logfc = holidic.proteome.red[match(rankedSet$UNIPROTKB, sub(";.*","", holidic.proteome.red$ID)),]$Ratio)
 monster.gsea <- subset(monster.gsea, !duplicated(monster.gsea$entrez))
 #write.table(monster.gsea, "GSEA/Monster/Monster.deep.rnk", quote = F, col.names = F, row.names = F, sep = "\t")
+
+##Prepare a table for ORA
+holidic.proteome.complete$ENTREZ <- mapIds(org.Dm.eg.db, 
+                               keys=as.character(holidic.proteome.complete$ID), 
+                               column="ENTREZID", 
+                               keytype="UNIPROT",
+                               multiVals="first")
+
+monster.ora <- holidic.proteome.complete[holidic.proteome.complete$limma.padj < 0.001,]$ENTREZ
+#write.table(monster.ora, file = "GSEA/Monster/Monster_ORA.deep.txt", col.names = F, quote = F,
+            row.names = F)
+
 
 ## Import the WebGestalt output and plot
 monster.gsea.webgestalt <- read.table("GSEA/Monster/Proteome_deep_Results/Monster.proteome.GSEA.results.txt",
@@ -1081,7 +836,7 @@ monster.gsea.webgestalt <- read.table("GSEA/Monster/Proteome_deep_Results/Monste
 cbPalette <- c("#999999", "#E69F00", "#56B4E9", "#009E73", "#0072B2", "#D55E00", "#CC79A7")
 
 ## Figure S6A
-cairo_pdf("FigureS6A.pdf")
+#cairo_pdf("Figure2C.pdf")
 ggplot(data = monster.gsea.webgestalt, aes(x = NES, y = -log10(padj), color = Reference, size = coverage))+
   geom_point()+
   theme_classic()+
@@ -1089,7 +844,7 @@ ggplot(data = monster.gsea.webgestalt, aes(x = NES, y = -log10(padj), color = Re
                   box.padding = 0.5,
                   point.padding = 0.5)+
   scale_colour_manual(values=cbPalette)
-dev.off()
+#dev.off()
 
 ## How many proteins were calculated in either replicate?
 table(!is.na(holidic.proteome.red$Ratio))
@@ -1100,12 +855,19 @@ table(!is.na(holidic.proteome.red$Ratio))
 FAM <- c("40692","38457","37446","44117","43591","35213","35761","33524","34614","39860","31703","117361","43592","117369","3355111")
 Glyco <- c("35886","43582","45880","43183","42620","33351","43191","33461","44008","34021","42185","39988","45875","31406","36060","43437","43447","36020", "37131", "36020")
 
-holidic.proteome.complete$entrez <- rankedSet[match(sub(";.*","", holidic.proteome.complete$ID), rankedSet$UNIPROTKB),]$ENTREZ_GENE
+#holidic.proteome.complete$entrez <- rankedSet[match(sub(";.*","", holidic.proteome.complete$ID), rankedSet$UNIPROTKB),]$ENTREZ_GENE
+
+holidic.proteome.complete$entrez <- mapIds(org.Dm.eg.db, 
+                                     keys=as.character(sub(";.*","", holidic.proteome.complete$ID)), 
+                                     column="ENTREZID", 
+                                     keytype="UNIPROT",
+                                     multiVals="first")
+
+
 holidic.proteome.complete$FAM <- holidic.proteome.complete$entrez %in% FAM
 holidic.proteome.complete$Glyco <- holidic.proteome.complete$entrez %in% Glyco
 
-
-#cairo_pdf("Figure3B.pdf")
+#cairo_pdf("Figure2A.pdf")
 ggplot(data = holidic.proteome.complete, aes(x = Ratio, y = -log10(limma.padj))) +
     geom_point(data = holidic.proteome.complete[holidic.proteome.complete$FAM == FALSE&holidic.proteome.complete$Glyco == FALSE,],
                color = "grey", alpha = 0.6)+
@@ -1121,15 +883,17 @@ ggplot(data = holidic.proteome.complete, aes(x = Ratio, y = -log10(limma.padj)))
     coord_cartesian(xlim = c(-4,4))
 #dev.off()
 
-#write.table(holidic.proteome.complete, "/Users/florsc/Documents/1_Projects/_SAMC/SILAF/Submission/Holidic_Proteome.txt",  sep = "\t")
+#write.table(holidic.proteome.complete, ".../SILAF/Submission/Holidic_Proteome.txt",  sep = "\t")
+
 ```
 
 ## Differential phosphorylome: Figure 2C and figure S5B-E
 
 ```{r Phosphorylome, tidy = TRUE, warning = FALSE}
 # Start by looking at the phospho sites
-phospho <- read.csv("/Users/florsc/Documents/1_Projects/_SAMC/SILAF/MQ results/SILAF/Markdown/Phospho/Phospho(STY)Sites.csv", 
+phospho <- read.csv(".../SILAF/MQ results/SILAF/Markdown/Phospho/Phospho(STY)Sites.csv", 
                     header = T, sep =";")
+
 
 # Exclusion criterion
 phospho <- phospho[phospho$Localization.prob>=0.75,]
@@ -1148,10 +912,10 @@ publication$occupancy.diff <- log2(publication$occupancy.holidic/publication$occ
 
 ## How is the H/L ratio per site of the two replicates towards each other? Figure S6C
 
-# Calculate R:
+#Calculate R:
 round(cor(log2(phospho$Ratio.H.L.normalized.1), log2(phospho$Ratio.H.L.normalized.2), use = "complete.obs"), digits=4)
 
-#cairo_pdf("FigureS5A.pdf")
+#cairo_pdf("FigureS3B.pdf")
 ggplot(data = phospho, aes(x = log2(Ratio.H.L.normalized.1), y = log2(Ratio.H.L.normalized.2)))+
   geom_hline(yintercept = 0)+
   geom_vline(xintercept = 0)+
@@ -1173,7 +937,6 @@ ggplot(data = phospho, aes(x = log2(Ratio.H.L.normalized.1), y = log2(Ratio.H.L.
   coord_fixed(ratio = 1/1)
 #dev.off()
 
-# The H/L ratio per site tells little about its occupancy as it is not corrected for peptide abundances. 
 ## Looking at occupancies: individual replicates
 phospho.occupancy <- data.frame(gene = phospho$Gene.names,
                                 protein = phospho$Proteins,
@@ -1181,22 +944,14 @@ phospho.occupancy <- data.frame(gene = phospho$Gene.names,
                                 Rep1 = log2(phospho$Occupancy.H.1/phospho$Occupancy.L.1), 
                                 Rep2 = log2(phospho$Occupancy.H.2/phospho$Occupancy.L.2),
                                 Rep.comb = log2(phospho$Occupancy.H/phospho$Occupancy.L),
-                                locProb = phospho$Localization.prob)
+                                locProb = phospho$Localization.prob,
+                                mean.MQ = log2(phospho$Occupancy.H/phospho$Occupancy.L))
 
 phospho.occupancy$mean <- apply(phospho.occupancy[,4:5],1,mean.na)
 phospho.occupancy <- phospho.occupancy[complete.cases(phospho.occupancy$mean),]
 
-fit <- lmFit(phospho.occupancy[,4:5])
-fit <- eBayes(fit)
-limma.result <- topTable(fit,number = Inf,confint = TRUE, adjust.method = "fdr")
-
-ggplot(data = limma.result, aes(x=logFC,y=-log10(adj.P.Val)))+
-  geom_point()
-
-phospho.occupancy$limma <- limma.result[match(rownames(phospho.occupancy), rownames(limma.result)),]$adj.P.Val
-
-### Figure S6B:
-#cairo_pdf("FigureS6B.pdf")
+### Figure S3C:
+#cairo_pdf("FigureS3C.pdf")
 ggplot(data = phospho.occupancy, aes(x = Rep1, y = Rep2))+
   geom_hline(yintercept = 0)+
   geom_vline(xintercept = 0)+
@@ -1236,7 +991,7 @@ phospho.gsea <- phospho.gsea[order(abs(phospho.gsea$logfc)),] # As to remove dup
 
 phospho.gsea <- subset(phospho.gsea, !duplicated(phospho.gsea$entrez))
 #write.table(file = "GSEA/Monster/Monster.phospho.rnk", phospho.gsea, sep = "\t", col.names = F, 
-            row.names = F, quote = F)
+#            row.names = F, quote = F)
 
 ### Import the WebGestalt output and plot
 phospho.gsea.results <- read.table("GSEA/Monster/Phospho_Results/Monster.phospho.GSEA.results.txt",
@@ -1246,7 +1001,7 @@ phospho.gsea.results <- read.table("GSEA/Monster/Phospho_Results/Monster.phospho
 cbPalette <- c("#999999", "#E69F00", "#56B4E9", "#0072B2", "#D55E00", "#CC79A7")
 
 ### Figure S6B
-#cairo_pdf("FigureS6B.pdf")
+#cairo_pdf("FigureS3D.pdf")
 ggplot(data = phospho.gsea.results, aes(x = NES, y = -log10(padj), color = Reference, size = coverage))+
   geom_point()+
   theme_classic()+
@@ -1275,25 +1030,26 @@ string.changed <- as.character(phospho.occupancy.cuml[abs(phospho.occupancy.cuml
 string.up <- as.character(phospho.occupancy.cuml[phospho.occupancy.cuml$occupancy >= 1,]$protein)
 string.down <- as.character(phospho.occupancy.cuml[phospho.occupancy.cuml$occupancy <= -1,]$protein)
 string.background <- as.character(phospho.occupancy.cuml$protein)
-write.table(file = "GSEA/Monster/Phosphostring_changed.txt", string.changed, quote = F, col.names = F, row.names = F)
-write.table(file = "GSEA/Monster/Phosphostring_up.txt", string.up, quote = F, col.names = F, row.names = F)
-write.table(file = "GSEA/Monster/Phosphostring_down.txt", string.down, quote = F, col.names = F, row.names = F)
-write.table(file = "GSEA/Monster/Phosphostring_bg.txt", string.background, quote = F, col.names = F, row.names = F)
+#write.table(file = "GSEA/Monster/Phosphostring_changed.txt", string.changed, quote = F, col.names = F, row.names = F)
+#write.table(file = "GSEA/Monster/Phosphostring_up.txt", string.up, quote = F, col.names = F, row.names = F)
+#write.table(file = "GSEA/Monster/Phosphostring_down.txt", string.down, quote = F, col.names = F, row.names = F)
+#write.table(file = "GSEA/Monster/Phosphostring_bg.txt", string.background, quote = F, col.names = F, row.names = F)
 
 ### Plot occupancies in a histogram
-#pdf("Figure2C.pdf")
+#pdf("Figure2D.pdf")
 ggplot(data = phospho.occupancy.cuml, aes(occupancy))+
   geom_histogram()+
   theme_classic()
 #dev.off()
 
+dim(phospho[phospho$Localization.prob>=0.75,])
   
 # How many proteins are there in total? Basis for Figure 2B
 df <- data.frame(x = c(3,6,9,12), y = c(3,6,9,12))
 size <- c(12221, 7496, 1356, 629)
 size <- sqrt(size/pi)*2
 
-#cairo_pdf("Figure3B2.pdf")
+#cairo_pdf("Figure2B1.pdf")
 ggplot(data = df, aes (x = x, y = y))+
   geom_point(size = size)+
   coord_cartesian(xlim=c(-2,15), ylim = c(-2,15))
@@ -1303,20 +1059,23 @@ df <- data.frame(x = c(3,6,9,12), y = c(3,6,9,12))
 size <- c(5966, 4749, 3880, 141)
 size <- sqrt(size/pi)*2
 
-#cairo_pdf("Figure3B1.pdf")
+#cairo_pdf("Figure2B2.pdf")
 ggplot(data = df, aes (x = x, y = y))+
   geom_point(size = size)+
   coord_cartesian(xlim=c(-2,15), ylim = c(-2,15))
 #dev.off()
 
-# Sequence motives: Figure S6E
+# Sequence motives: FigureS3A
 ## Global
-#pdf("FigureS5C.pdf")
-ggseqlogo(sub(";.*","",as.character(phospho.occupancy$seq)), method = 'bits', col_scheme='chemistry')
+
+t <- phospho.occupancy.cuml[!is.na(phospho.occupancy.cuml$seq),]
+
+#pdf("FigureS3A.pdf")
+ggseqlogo(sub(";.*","",as.character(t$seq)), method = 'bits', col_scheme='chemistry')
 #dev.off()
 
 ## Testing the environment of specific phospho AA
-ggseqlogo(sub(";.*","",as.character(phospho.occupancy[substr(as.character(phospho.occupancy$seq), 16, 16)=="Y",]$seq)), method = 'bits', col_scheme='chemistry')
+ggseqlogo(sub(";.*","",as.character(t[substr(as.character(t$seq), 16, 16)=="Y",]$seq)), method = 'bits', col_scheme='chemistry')
 
 # Depicting selected targets
 ## Groups taken from the earlier GSEA
@@ -1370,8 +1129,8 @@ phospho.select$type <- factor(phospho.select$type, levels = unique(phospho.selec
 phospho.select <- phospho.select[phospho.select$occupancy != 0,]
 phospho.select <- phospho.select[!is.na(phospho.select$occupancy),]
 
-## Figure S5D
-#cairo_pdf("FigureS5D.pdf", 10, 4)
+## Figure S3E
+#cairo_pdf("FigureS3E.pdf", 10, 4)
 ggplot(data = phospho.select, aes(x=name.unique, y = occupancy, fill = type))+
   geom_bar(stat="identity", position=position_dodge())+
   theme_classic()+
@@ -1379,4 +1138,507 @@ ggplot(data = phospho.select, aes(x=name.unique, y = occupancy, fill = type))+
   scale_fill_manual(values=c("grey", "firebrick3"))+
   coord_cartesian(ylim= c(0,1))
 #dev.off()
+```
+
+# Mitochondrial proteome and phosphorylome upon loss of LRPPRC
+
+## LRPPRC mitoproteome
+
+```{r LRPPRC_phospho total proteome}
+###############################
+### Total proteome overview ###
+###############################
+
+dm.mitocarta <- read.csv("deepLRPPRC_Fly/Fly_Interactome_curated.csv")
+oxphos.library <- read.table("deepLRPPRC_Fly/OXPHOS_components_Mm.Dm.txt", header = T, sep = "\t") # Manually curated last: 190702
+
+## Prepare the data frame
+lrpprc.deep <- read_tsv('deepLRPPRC_Fly/IA_FS_LRPPRC_SILAF_Phospho_with_match_06_2019/data/proteinGroups.txt')
+lrpprc.deep.HL <- log2(lrpprc.deep[,grepl("Ratio.H.L.normalized.Exp_", colnames(lrpprc.deep))]) #Focus on normalized H/L ratios and log2 convert
+lrpprc.deep.HL[,c(2,4)] <- -lrpprc.deep.HL[,c(2,4)] #Turn around the label swaps
+rownames(lrpprc.deep.HL) <- lrpprc.deep$`Majority protein IDs`
+
+## Limma stats
+fit <- lmFit(lrpprc.deep.HL)
+fit <- eBayes(fit)
+limma.result <- topTable(fit,number = Inf,confint = TRUE, adjust.method = "fdr")
+
+## Annotation
+limma.result$protein <- sub(";.*","", rownames(limma.result))
+
+limma.result$ENSEMBL <- mapIds(org.Dm.eg.db, 
+                               keys=as.character(limma.result$protein), 
+                               column="ENSEMBL", 
+                               keytype="UNIPROT",
+                               multiVals="first")
+
+limma.result$SYMBOL <- as.character(mapIds(org.Dm.eg.db, 
+                                           keys=as.character(limma.result$protein), 
+                                           column="SYMBOL", 
+                                           keytype="UNIPROT",
+                                           multiVals="first"))
+
+limma.result$dm.mitocarta <- dm.mitocarta[match(limma.result$ENSEMBL, dm.mitocarta$Gene.ID),]
+limma.result$mitochondrial <- limma.result$ENSEMBL %in% dm.mitocarta$Gene.ID
+
+## Global volcano plot
+ggplot(data = limma.result, aes(x = logFC, y = -log10(adj.P.Val)))+
+  geom_point()+
+  geom_point(data = limma.result[limma.result$mitochondrial == TRUE,], aes(x = logFC, y = -log10(adj.P.Val)), 
+             col = "red")+
+  geom_label_repel(data = limma.result[limma.result$adj.P.Val < 0.001,], aes(x = logFC, y = -log10(adj.P.Val), 
+                                                                             label = SYMBOL, col = mitochondrial))+
+  scale_color_manual(values=c("black", "red"))+
+  theme_bw()+
+  labs(title = "LRPPRC knockdown: limma on normalized H/L ratios")
+
+total.proteome.after.enrich <- limma.result # Assign unambigous variable for later
+
+#write.table(total.proteome.after.enrich, "deepLRPPRC_Fly/LRPPRC_proteome.for.STable.txt", sep = "\t")
+
+
+## Enrichment
+lrpprc.deep$ENSEMBL <-  mapIds(org.Dm.eg.db, 
+                               keys=as.character(sub(";.*","", lrpprc.deep$`Majority protein IDs`)), 
+                               column="ENSEMBL", 
+                               keytype="UNIPROT",
+                               multiVals="first")
+
+lrpprc.deep$mito <- lrpprc.deep$ENSEMBL %in% dm.mitocarta$Gene.ID
+
+#cairo_pdf("deepLRPPRC_Fly/FigureS4A_Mito.enrichment_LRPPRC.pdf", 3, 3)
+ggplot(data = lrpprc.deep, aes (x = mito, y = log2(Intensity)))+
+  geom_boxplot()+
+  coord_cartesian(ylim=c(15,45))+
+  theme_classic()
+#dev.off()
+
+holidic.proteome$ENSEMBL <- mapIds(org.Dm.eg.db, 
+                               keys=as.character(sub(";.*","", holidic.proteome$Majority.protein.IDs)), 
+                               column="ENSEMBL", 
+                               keytype="UNIPROT",
+                               multiVals="first")
+
+holidic.proteome$mito <- holidic.proteome$ENSEMBL %in% dm.mitocarta$Gene.ID
+
+#cairo_pdf("deepLRPPRC_Fly/FigureS4A_Mito.enrichment_Holidic.pdf", 3, 3)
+ggplot(data = holidic.proteome, aes (x = mito, y = log2(Intensity)))+
+  geom_boxplot()+
+  coord_cartesian(ylim=c(15,45))+
+  theme_classic()
+#dev.off()
+
+median(holidic.proteome[holidic.proteome$mito %in% TRUE,]$Intensity)/
+  median(holidic.proteome[holidic.proteome$mito %in% FALSE,]$Intensity)
+
+## Mitosubsetting
+total <- total.proteome.after.enrich
+total <- total[!is.na(total$logFC),]
+total <- total[!is.na(total$ENSEMBL),] # Eliminates reverse and contaminants
+
+### Categorical t-test with fdr correction and boxplotting
+cat.t.test <- function(data, abs = "FALSE"){
+  data <- total
+  cats <- unique(data$dm.mitocarta$Mitochondrial.Process)
+  cats = cats[!is.na(cats)]
+  p <- c()
+  for(i in c(1:length(cats))){
+    data.sub <- data[which(data$dm.mitocarta$Mitochondrial.Process == cats[i]),]
+    if(dim(data.sub)[1] <= 1){
+      p.add <- NA
+    } else {
+      p.add <- p.adjust(unlist(t.test(data.sub$logFC)[3]), method = "fdr", n = length(data.sub$logFC))
+      if(abs == "TRUE"){
+        p.add <- p.adjust(unlist(t.test(abs(data.sub$logFC))[3]), method = "fdr", n = length(data.sub$logFC))
+      }
+    }
+    p <- c(p,p.add)
+  }
+  stats <- data.frame(Category = cats, p.value = round(p,20))
+  return(stats)
+}
+
+cat.t.test(total, abs = "FALSE")
+
+#cairo_pdf("deepLRPPRC_Fly/Figure3A_Boxplot.categories.pdf", 10, 4)
+ggplot(total[!is.na(total$dm.mitocarta$Mitochondrial.Process),], 
+       aes(x = fct_reorder(dm.mitocarta$Mitochondrial.Process, logFC, .desc = TRUE), y = logFC))+
+  geom_hline(yintercept = 0)+
+  theme_bw()+
+  geom_boxplot(outlier.size = 0.2)+
+  #coord_cartesian(ylim = c(-3,3))+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))+
+  geom_jitter(position=position_jitter(0.2), size = 0.2)+
+  labs(title = "Mitochondrial functional categories in LRPPRC proteomics")
+#dev.off()
+
+### Heatmapping by complex
+proc <- lrpprc.deep.HL
+proc$ENSEMBL <- mapIds(org.Dm.eg.db, 
+                       keys=sub(";.*","", rownames(proc)), 
+                       column="ENSEMBL", 
+                       keytype="UNIPROT",
+                       multiVals="first")
+
+proc <- proc[!is.na(proc$ENSEMBL),]
+proc$complex <- oxphos.library[match(proc$ENSEMBL, oxphos.library$Dm),]$Complex
+proc <- proc[order(match(proc$ENSEMBL,oxphos.library$Dm)),]
+proc$category <- dm.mitocarta[match(proc$ENSEMBL, dm.mitocarta$Gene.ID),]
+
+#etc.members <- proc[proc$category$Mitochondrial.Process %in% "Electron Transport Chain",]
+#write.table(etc.members, file = "deepLRPPRC_Fly/Missing.ETC.components.txt", sep = "\t")
+
+proc <- proc[!is.na(proc$complex),]
+proc <- proc[!rowSums(is.na(proc[,1:4])) >= 4,] # Exclude all four values NA
+proc$homolog <- oxphos.library[match(proc$ENSEMBL, oxphos.library$Dm),]$Mm
+
+proc <- proc[with(proc, order(complex, homolog)),]
+
+total.oxphos.heatmap <- proc[,1:4]
+total.oxphos.heatmap <- total.oxphos.heatmap[,order(c(1,3,2,4))] # Aesthetically, turn around the order of samples
+rownames(total.oxphos.heatmap) <- paste(proc$complex, proc$ENSEMBL, proc$homolog, sep = ";")
+total.oxphos.heatmap[total.oxphos.heatmap == "NaN"] <- NA
+
+breakList <- seq(-2.1,2.1, by = 0.25)
+colors <- colorpanel(length(breakList)-1, "deepskyblue", "black", "yellow")
+
+#cairo_pdf("deepLRPPRC_Fly/Figure3B.FigureS4D_Total.prot.pheatmap.pdf", 5, 65)
+pheatmap(total.oxphos.heatmap, color = colors, breaks = breakList, cluster_cols = F, cluster_rows = F,
+         main = "LRPPRC fold changes per replicate", gaps_row = c(37,40,50,62,80,81,95,109,113,117,133))
+#dev.off()
+
+### Supplementary bsf levels
+bsf.levels <- lrpprc.deep[lrpprc.deep$`Gene names` %in% "bsf",]
+bsf.levels <- bsf.levels[,grepl("Intensity.[LH].", colnames(bsf.levels))]
+bsf.levels <- data.frame(t(bsf.levels))
+bsf.levels$condition <- rep(c("C", "KD", "KD", "C"),2)
+
+#cairo_pdf("deepLRPPRC_Fly/FigureS4A_LRPPRC_changes.pdf")
+ggplot(data = bsf.levels, aes(x = condition, y = log2(t.bsf.levels.)))+
+  geom_point()+
+  theme_classic()+
+  coord_cartesian(ylim=c(15,45))+
+  theme_classic()
+#dev.off()
+
+### Supplementary GSEA O-term enrichment
+gsea.bsf <- data.frame(name = total.proteome.after.enrich$ENSEMBL, FC = total.proteome.after.enrich$logFC)
+#write.table(gsea.bsf, file = "deepLRPPRC_Fly/GSEA.bsf.in.rnk", row.names = F, col.names = F, quote = F, sep = "\t")
+
+webgestalt.bsf <- read.table("deepLRPPRC_Fly/Webgestalt_bsf.total_affinity.prop_KEGG.Reactome.txt", sep = "\t")
+colnames(webgestalt.bsf) <- c("Name", "NES")
+
+webgestalt.bsf$Name <- factor(webgestalt.bsf$Name, levels = webgestalt.bsf$Name)
+
+#pdf("deepLRPPRC_Fly/FigureS4B_Webgestalt_bsf.total_affinity.prop_KEGG.Reactome.pdf")
+ggplot(data = webgestalt.bsf, aes (y = NES, x = Name))+
+  geom_bar(stat = "identity", col = "black")+
+  theme_classic()
+#dev.off()
+
+## Overlap fly and mouse
+
+### Import the data from Kühl et al. (2017)
+kuehl.lrpprc <- read.table("LRPPRC_Mouse/LRPPRC_Mouse.txt", sep = "\t", header = T)
+
+fly <- total.proteome.after.enrich
+
+## Make a new data frame overlapping fly and mouse data
+sthlm.kuehl.lrpprc <- data.frame(name = oxphos.library$SYMBOL,
+                                 Dm = fly[match( oxphos.library$Dm, fly$ENSEMBL),]$logFC,
+                                 Mm.20 = kuehl.lrpprc[match(oxphos.library$Mm, kuehl.lrpprc$Gene.names),]$logFC.2weeks,
+                                 Mm.34 = kuehl.lrpprc[match(oxphos.library$Mm, kuehl.lrpprc$Gene.names),]$logFC.3.4weeks,
+                                 Mm.50 = kuehl.lrpprc[match(oxphos.library$Mm, kuehl.lrpprc$Gene.names),]$logFC.5weeks,
+                                 Mm.70 = kuehl.lrpprc[match(oxphos.library$Mm, kuehl.lrpprc$Gene.names),]$logFC.7weeks,
+                                 Mm.99 = kuehl.lrpprc[match(oxphos.library$Mm, kuehl.lrpprc$Gene.names),]$logFC.10weeks,
+                                 complex = oxphos.library$Complex)
+
+sthlm.kuehl.lrpprc <- gather(sthlm.kuehl.lrpprc, "Species", "Intensity", 2:7)
+
+sthlm.kuehl.lrpprc <- sthlm.kuehl.lrpprc[sthlm.kuehl.lrpprc$complex == "1" |
+                                         sthlm.kuehl.lrpprc$complex == "2" |
+                                         sthlm.kuehl.lrpprc$complex == "3" |
+                                         sthlm.kuehl.lrpprc$complex == "4" |
+                                         sthlm.kuehl.lrpprc$complex == "5",]
+
+#cairo_pdf("FigureS4E_LRPPRC_Kuehl_Sthlm.pdf", 7, 4)
+ggplot(data = sthlm.kuehl.lrpprc, aes(x = complex, y = Intensity, fill = Species))+
+  geom_boxplot()+
+  theme_classic()+
+  scale_fill_brewer(palette = "Purples")
+#dev.off()
+
+```
+
+## LRPPRC mitophosphorylome
+
+```{r LRPPRC_phospho phosphorylome}
+#####################
+### Phosphorylome ###
+#####################
+
+# Prepare data and filter
+bsf.phospho.match <- read_tsv("deepLRPPRC_Fly/IA_FS_LRPPRC_SILAF_Phospho_with_match_06_2019/data/Phospho (STY)Sites.txt")
+
+bsf.phospho.match <- bsf.phospho.match[!grepl("REV__",bsf.phospho.match$Protein),]
+bsf.phospho.match <- bsf.phospho.match[bsf.phospho.match$`Localization prob` >= 0.75,]
+
+rownames(bsf.phospho.match) <- paste(bsf.phospho.match$`Leading proteins`, ";", bsf.phospho.match$`Positions within proteins`, sep = "")
+
+Occupancy.L <- bsf.phospho.match[,grepl("Occupancy.L", colnames(bsf.phospho.match))]
+Occupancy.L[Occupancy.L == 0] <- NA # Assuming that an occupancy of 0 doesn't exist if the site is picked up
+Occupancy.H <- bsf.phospho.match[,grepl("Occupancy.H", colnames(bsf.phospho.match))]
+Occupancy.H[Occupancy.L == 0] <- NA # again
+
+Occupancy <- log2(Occupancy.H/Occupancy.L)
+Occupancy[,c(3,5)] <- -Occupancy[,c(3,5)]
+Occupancy <- Occupancy[,-1]
+
+rownames(Occupancy) <- rownames(bsf.phospho.match)
+rownames(Occupancy.L)<- rownames(bsf.phospho.match)
+rownames(Occupancy.H)<- rownames(bsf.phospho.match)
+
+# Stats with limma
+fit <- lmFit(Occupancy)
+fit <- eBayes(fit)
+limma.result <- topTable(fit,number = Inf,confint = TRUE, adjust.method = "fdr")
+
+limma.result$protein <- sub(";.*","", rownames(limma.result))
+
+limma.result$ENSEMBL <- mapIds(org.Dm.eg.db, 
+                               keys=as.character(limma.result$protein), 
+                               column="ENSEMBL", 
+                               keytype="UNIPROT",
+                               multiVals="first")
+
+limma.result$SYMBOL <- as.character(mapIds(org.Dm.eg.db, 
+                                           keys=as.character(limma.result$protein), 
+                                           column="SYMBOL", 
+                                           keytype="UNIPROT",
+                                           multiVals="first"))
+
+limma.result$dm.mitocarta <- dm.mitocarta[match(limma.result$ENSEMBL, dm.mitocarta$Gene.ID),]
+limma.result$mitochondrial <- limma.result$ENSEMBL %in% dm.mitocarta$Gene.ID
+limma.result$OXPHOS <- limma.result$ENSEMBL %in% oxphos.library$Dm
+
+limma.result$occ.L <- Occupancy.L[match(rownames(limma.result), rownames(Occupancy.L)),2:5]
+limma.result$occ.H <- Occupancy.H[match(rownames(limma.result), rownames(Occupancy.H)),2:5]
+
+limma.result$mean.occ.ctrl <- apply(data.frame(limma.result$occ.L$`Occupancy L Exp_01`,
+                                     limma.result$occ.L$`Occupancy L Exp_03`,
+                                     limma.result$occ.H$`Occupancy H Exp_02`,
+                                     limma.result$occ.H$`Occupancy H Exp_04`), 1, mean.na)
+limma.result$mean.occ.KD <- apply(data.frame(limma.result$occ.L$`Occupancy L Exp_02`,
+                                     limma.result$occ.L$`Occupancy L Exp_04`,
+                                     limma.result$occ.H$`Occupancy H Exp_01`,
+                                     limma.result$occ.H$`Occupancy H Exp_03`), 1, mean.na)
+
+limma.result$peptide <- bsf.phospho.match[match(rownames(limma.result), rownames(bsf.phospho.match)),]$`Phospho (STY) Probabilities`
+limma.result$PEP <- bsf.phospho.match[match(rownames(limma.result), rownames(bsf.phospho.match)),]$PEP
+limma.result$ratio.occ <- Occupancy[match(rownames(limma.result), rownames(Occupancy)),]
+limma.result$position <- bsf.phospho.match[match(rownames(limma.result), rownames(bsf.phospho.match)),]$`Positions within proteins`
+
+#write.table(limma.result, "deepLRPPRC_Fly/LRPPRC_phosphorylome.for.STable.txt", sep = "\t")
+
+# Volcano plotting mitochondrial for supplementary
+#cairo_pdf("deepLRPPRC_Fly/Figure4C_Phospho_Occupancies_mito.pdf", 6, 6)
+ggplot(data = limma.result, aes(x = logFC, y = -log10(adj.P.Val)))+
+  geom_point(data = limma.result[limma.result$mitochondrial != TRUE,], aes(x = logFC, y = -log10(adj.P.Val)), 
+             col = "grey")+
+  geom_point(data = limma.result[limma.result$mitochondrial %in% TRUE &
+                                   limma.result$dm.mitocarta$Mitochondrial.Process != 
+                                   "Electron Transport Chain",], aes(x = logFC, y = -log10(adj.P.Val)), 
+             col = "black")+
+  geom_text_repel(data = limma.result[limma.result$adj.P.Val < 0.05 & limma.result$mitochondrial == TRUE &
+                                        limma.result$dm.mitocarta$Mitochondrial.Process != 
+                                        "Electron Transport Chain",], 
+                  aes(x = logFC, y = -log10(adj.P.Val), 
+                      label = SYMBOL), color = "black", force = 10, max.iter = 5000)+
+  geom_text_repel(data = limma.result[limma.result$adj.P.Val < 0.05 & limma.result$mitochondrial != TRUE,], 
+                  aes(x = logFC, y = -log10(adj.P.Val), 
+                      label = SYMBOL), color = "grey", force = 10, max.iter = 5000)+
+  geom_hline(yintercept = -log10(0.05), lty = "dotted")+
+  theme_classic()
+#dev.off()
+
+# Volcano plotting OXPHOS main
+#cairo_pdf("deepLRPPRC_Fly/FigureS4F_Phospho_Occupancies_OXPHOS.pdf", 4, 4)
+ggplot(data = limma.result, aes(x = logFC, y = -log10(adj.P.Val)))+
+  geom_point(data = limma.result[limma.result$mitochondrial != TRUE | 
+                                   limma.result$dm.mitocarta$Mitochondrial.Process != 
+                                   "Electron Transport Chain",], aes(x = logFC, y = -log10(adj.P.Val)), 
+             col = "grey")+
+  geom_point(data = limma.result[limma.result$OXPHOS == TRUE,], aes(x = logFC, y = -log10(adj.P.Val)), 
+             col = "darkorange3")+
+  geom_text_repel(data = limma.result[limma.result$adj.P.Val < 0.05 & 
+                                      limma.result$OXPHOS == TRUE,], 
+                  aes(x = logFC, y = -log10(adj.P.Val), 
+                      label = SYMBOL), color = "darkorange3", force = 10, max.iter = 5000)+
+  geom_hline(yintercept = -log10(0.05), lty = "dotted")+
+  theme_classic()
+#dev.off()
+
+#table.oxphos.phospho <- limma.result[limma.result$dm.mitocarta$Mitochondrial.Process %in% "Electron Transport Chain",]
+
+#write.table(file = "deepLRPPRC_Fly/OXPHOS.phospho.sig.txt", table.oxphos.phospho, row.names = F, 
+#            quote = F, sep = "\t")
+
+#boxplot(limma.result$logFC)
+
+limma.result.occ <- limma.result
+limma.result.etc <- limma.result.occ[limma.result.occ$dm.mitocarta$Mitochondrial.Process %in% "Electron Transport Chain",]
+
+# Site conservation for OXPHOS
+## Prepare a table to manually assess site conservation
+phospho.detected <- bsf.phospho.match
+phospho.detected$ENSEMBL <- mapIds(org.Dm.eg.db, 
+                                   keys=sub(";.*","", bsf.phospho.match$Proteins), 
+                                   column="ENSEMBL", 
+                                   keytype="UNIPROT",
+                                   multiVals="first")
+
+phospho.detected$mitocarta <- dm.mitocarta[match(phospho.detected$ENSEMBL, dm.mitocarta$Gene.ID),]
+phospho.detected.oxphos <- phospho.detected[phospho.detected$mitocarta$Mitochondrial.Process %in% "Electron Transport Chain",]
+
+phospho.detected.oxphos.red <- data.frame(name = phospho.detected.oxphos$`Leading proteins`,
+                                          site = phospho.detected.oxphos$`Positions within proteins`,
+                                          confidence = phospho.detected.oxphos$`Phospho (STY) Probabilities`,
+                                          ENSEMBL = phospho.detected.oxphos$mitocarta$Gene.ID,
+                                          SYMBOL = phospho.detected.oxphos$mitocarta$SYMBOL,
+                                          humanized = phospho.detected.oxphos$mitocarta$humanized,
+                                          complex = oxphos.library[match(phospho.detected.oxphos$ENSEMBL, oxphos.library$Dm),]$Complex)
+
+#write.table(phospho.detected.oxphos.red, file = "deepLRPPRC_Fly/OXPHOS.phospho.all.txt", 
+ #           row.names = F, quote = F, sep = "\t")
+
+## Manual annotation using DIOPT
+
+phospho.detected_curated <- read.table(file = "deepLRPPRC_Fly/OXPHOS.phospho.all_curated.txt", sep = "\t", header = T)
+
+phospho.detected_curated$occ.L <- Occupancy.L[match(phospho.detected_curated$short, rownames(Occupancy.L)),2:5]
+phospho.detected_curated$occ.H <- Occupancy.H[match(phospho.detected_curated$short, rownames(Occupancy.H)),2:5]
+phospho.detected_curated$mean <- Occupancy[match(phospho.detected_curated$short, rownames(Occupancy)),]
+
+phospho.detected_curated_w.occ <- write.table(phospho.detected_curated, file = "deepLRPPRC_Fly/OXPHOS.phospho.all_curated_w.occ.txt", sep = "\t")
+
+
+phospho.detected_curated$mutated.from <- sub("\\..*","",phospho.detected_curated$AA.Dm)
+phospho.detected_curated$mutated.to <- sub("\\..*","",phospho.detected_curated$AA.Hs)
+phospho.detected_curated$combo <- paste(phospho.detected_curated$mutated.from, ">", phospho.detected_curated$mutated.to, sep = "")
+
+phospho.alluvial <- data.frame(table(phospho.detected_curated$combo))
+phospho.alluvial$from <- sub(">.*", "", phospho.alluvial$Var1)
+phospho.alluvial$to <- sub(".*>", "", phospho.alluvial$Var1)
+
+is_alluvia_form(as.data.frame(phospho.alluvial), axes = 2:4, silent = TRUE)
+
+#cairo_pdf("deepLRPPRC_Fly/Figure4B_OXPHOS.sites.mutate.to.pdf")
+ggplot(as.data.frame(phospho.alluvial),
+       aes(y = Freq, axis1 = from, axis2 = to))+
+  scale_fill_brewer(type = "qual", palette = "Set2") +
+  geom_flow(aes(fill = from), stat = "alluvium", lode.guidance = "rightleft",
+            color = "darkgray") +
+  geom_stratum(width = 1/12, fill = "white", color = "black") +
+  geom_label(stat = "stratum", label.strata = TRUE) +
+  guides(fill = FALSE)
+#dev.off()
+
+## Site conservation by complex
+phospho.by.complex <- data.frame(complex = phospho.detected_curated$complex,
+                                 conserved = phospho.detected_curated$conserved)
+
+phospho.by.complex$combo <- paste(phospho.by.complex$complex, phospho.by.complex$conserved, sep =".")
+phospho.by.complex <- data.frame(table(phospho.by.complex$combo))
+phospho.by.complex$complex <- sub("\\..*","",phospho.by.complex$Var1)
+phospho.by.complex$conserved <- sub(".*\\.","",phospho.by.complex$Var1)
+
+#cairo_pdf("deepLRPPRC_Fly/FigureS4G_OXPHOS.sites.conserved.by.complex.pdf", 6, 4)
+ggplot(data = phospho.by.complex, aes(x = complex, y = Freq, fill = conserved))+
+  geom_bar(stat="identity", position=position_dodge())+
+  scale_fill_brewer(palette="Dark2")+
+  theme_bw()+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+#dev.off()
+
+## Are processes under-/overrepresented in mitocarta in comparison to the peptides detected?
+phospho.detected$mitocarta <- dm.mitocarta[match(phospho.detected$ENSEMBL, dm.mitocarta$Gene.ID),]
+table(phospho.detected$mitocarta$Mitochondrial.Process)
+
+mod.spec.pept.lrpprc <- read_tsv("deepLRPPRC_Fly/IA_FS_LRPPRC_SILAF_Phospho_with_match_06_2019/data/modificationSpecificPeptides.txt") # read in peptide files
+
+mod.spec.pept.lrpprc$ENSEMBL <- mapIds(org.Dm.eg.db, 
+                                       keys=sub(";.*","", mod.spec.pept.lrpprc$Proteins), 
+                                       column="ENSEMBL", 
+                                       keytype="UNIPROT",
+                                       multiVals="first")
+
+mod.spec.pept.lrpprc$mitocarta <- dm.mitocarta[match(mod.spec.pept.lrpprc$ENSEMBL, dm.mitocarta$Gene.ID),]
+
+### Prepare a table showing ratios
+mod.spec.pept.lrpprc.unmod <- mod.spec.pept.lrpprc[mod.spec.pept.lrpprc$Modifications == "Unmodified",]
+
+relative.ratios <- data.frame(a.proteins = as.vector(table(dm.mitocarta$Mitochondrial.Process)),
+                              b.peptides = as.vector(table(mod.spec.pept.lrpprc.unmod$mitocarta$Mitochondrial.Process)),
+                              c.phospho = as.vector(table(phospho.detected$mitocarta$Mitochondrial.Process)))
+
+rownames(relative.ratios) <- names(table(mod.spec.pept.lrpprc$mitocarta$Mitochondrial.Process))
+
+col.sumns <- colSums(relative.ratios)
+relative.ratios <- data.frame(t(t(relative.ratios)/col.sumns))
+relative.ratios$cats <- rownames(relative.ratios)
+
+relative.ratios <- gather(relative.ratios, "level", "observed", 1:3)
+
+#cairo_pdf(file = "deepLRPPRC_Fly/Figure4A_Overrepresented.per.category.pdf", 10, 3)
+ggplot(data=relative.ratios, aes(x=cats, y=observed, fill=level)) +
+  geom_bar(stat="identity", position=position_dodge())+
+  scale_fill_brewer(palette="Dark2")+
+  theme_bw()+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+#dev.off()
+
+## Comparing mito enrichment with abundance of phospho-sites
+
+### Proteins
+total <- total.proteome.after.enrich
+total <- total[!is.na(total$logFC),]
+total <- total[!is.na(total$ENSEMBL),]
+
+table(total$mitochondrial)
+dim(dm.mitocarta)
+
+### Peptides unmodified
+table(is.na(mod.spec.pept.lrpprc.unmod$mitocarta$Gene.ID))
+
+### Peptides phosphorylated
+mod.spec.pept.lrpprc.phospho <- mod.spec.pept.lrpprc[grepl("Phospho.*", mod.spec.pept.lrpprc$Modifications),]
+table(is.na(mod.spec.pept.lrpprc.phospho$mitocarta$Gene.ID))
+
+### Phospho-sites
+table(is.na(phospho.detected$mitocarta$Gene.ID))
+
+### Prepare a table
+mito.enrichment <- data.frame(a.mitocarta = as.vector(table(-(dm.mitocarta$Gene.ID %in% total$ENSEMBL))),
+                              b.proteome = as.vector(table(-total$mitochondrial)),
+                              c.proteome.phospho = as.vector(table(is.na(phospho.detected$mitocarta$Gene.ID))),
+                              d.peptides.unmod = as.vector(table(is.na(mod.spec.pept.lrpprc.unmod$mitocarta$Gene.ID))),
+                              e.peptides.phospho = as.vector(table(is.na(mod.spec.pept.lrpprc.phospho$mitocarta$Gene.ID))))
+
+rownames(mito.enrichment) <- c("mito", "not.mito")
+
+col.sums <- colSums(mito.enrichment)
+ratio.mito.enrichment <- data.frame(t(t(mito.enrichment)/col.sums))
+
+ratio.mito.enrichment$compartment <- c("b.mito", "a.not.mito")
+ratio.mito.enrichment <- gather(ratio.mito.enrichment, "type", "ratios", 1:5)
+
+#cairo_pdf(file = "deepLRPPRC_Fly/FigureS4C_Mito.enrichment.pdf", 4, 3)
+ggplot(data=ratio.mito.enrichment, aes(x=type, y=ratios, fill=compartment)) +
+  geom_bar(stat="identity")+
+  scale_fill_brewer(palette="Dark2")+
+  theme_bw()+
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+#dev.off()
+
+#R code used for characterising specific targets will be released upon publication or upon reviewer demand. 
 ```
